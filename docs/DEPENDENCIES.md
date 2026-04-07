@@ -32,10 +32,10 @@ Chaque entrée suit ce format :
 - **⚠️ Impact :** Logique métier critique — sélection du contenu par scope + numérotation dynamique 2.2.x/2.4.x. Si un article est mal assemblé, le contrat signé sera faux.
 
 ### `src/lib/docx-generator.ts`
-- **Exporte :** [placeholder — pas encore implémenté]
-- **Utilisé par :** `src/app/api/generate/route.ts`
-- **Dépend de :** `src/config/styles.ts`, `docx` (npm)
-- **⚠️ Impact :** Mise en page des contrats. Toute modification doit être vérifiée visuellement sur les 18 variantes.
+- **Exporte :** `generateDocx(assembledArticles: AssembledArticle[], contract: Contract): Promise<Buffer>`
+- **Utilisé par :** `src/app/api/generate/route.ts`, `src/app/api/generate-test/route.ts`
+- **Dépend de :** `src/config/styles.ts`, `src/types/index.ts`, `docx` (npm), `fs`, `path`, images dans `public/images/`
+- **⚠️ Impact :** Mise en page des contrats. Toute modification doit être vérifiée visuellement sur P1.P.CJ, P3.S.R et P6.P.
 
 ### `src/config/contracts.ts`
 - **Exporte :** `ContractVariant` (type), `CONTRACT_VARIANTS` (tableau des 18 variantes)
@@ -67,9 +67,9 @@ Chaque entrée suit ce format :
 ## Config
 
 ### `src/config/styles.ts`
-- **Exporte :** [placeholder — pas encore implémenté]
+- **Exporte :** `FONTS`, `FONT_SIZES`, `PAGE`, `SPACING`, `HEADER`, `FOOTER`, `SIGNATURE`, `COMMENT_BOX` — constantes de mise en page extraites du DOCX de référence (Arial 10pt, A4, marges 2.54cm, interligne 1.15)
 - **Utilisé par :** `src/lib/docx-generator.ts`
-- **Dépend de :** rien
+- **Dépend de :** `docx` (convertMillimetersToTwip, convertInchesToTwip)
 
 ---
 
