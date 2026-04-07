@@ -899,7 +899,16 @@ Les Parties aux présentes reconnaissent que :
 -           L'exigence d'une pluralité\u0301 d'originaux est réputée satisfaite lorsque l'acte signé électroniquement est établi et conservé conformément aux articles 1366 et 1367 du Code civil, et que (ii) ce procédé\u0301 permet à chaque partie de disposer d'un exemplaire sur support durable ou d'y avoir accès, conformément aux dispositions de l'article 1375 du Code civil.`,
   },
 
-  // 37. bloc_signature
+  // 37. art_9
+  {
+    code: "art_9",
+    title: "Commentaires",
+    orderIndex: 365,
+    scope: "common",
+    contentCommon: `ARTICLE 9 - COMMENTAIRES\n\n[ZONE_COMMENTAIRES]`,
+  },
+
+  // 38. bloc_signature
   {
     code: "bloc_signature",
     title: "Bloc de signature",
