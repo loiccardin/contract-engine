@@ -1,17 +1,18 @@
 import { convertMillimetersToTwip, convertInchesToTwip } from "docx";
 
 // Styles extraits du DOCX de référence P1.P.CJ
-// Police : Arial — Corps : 10pt — Titres articles : 10pt Bold — Titre doc : 20pt Bold
+// Police : Helvetica Neue — Corps : 10pt — Titres articles : 10pt Bold — Titre doc : 20pt Bold
 // Interligne : 1.15 (276 twips) — Justification : both (justifié)
 // Page : A4 — Marges : top 4.75cm, left/right/bottom 2.54cm
 
 export const FONTS = {
-  body: "Arial",
-  title: "Arial",
+  body: "Helvetica Neue",
+  title: "Helvetica Neue",
 } as const;
 
 export const FONT_SIZES = {
   docTitle: 40,       // 20pt × 2 (half-points)
+  subTitle: 20,       // 10pt × 2 (CONCIERGERIE)
   articleTitle: 20,   // 10pt × 2
   body: 20,           // 10pt × 2
   anchorTab: 2,       // 1pt × 2 (invisible anchor tabs)
@@ -36,27 +37,27 @@ export const SPACING = {
   afterTitle: 200,     // ~10pt après un titre
 } as const;
 
-// Header banner dimensions (rectangle noir bord à bord)
+// Header banner: 2 rectangles noirs 8.84" × 1.61" + logo 1.95" × 1.52" centré
 export const HEADER = {
-  bannerWidth: 8086725,    // EMU (~21.3cm, déborde des marges)
-  bannerHeight: 1471613,   // EMU (~3.88cm)
-  bannerOffsetX: -1333499, // EMU (décalage gauche pour couvrir la marge)
-  bannerOffsetY: -433387,  // EMU (décalage haut)
-  logoWidth: convertMillimetersToTwip(50),  // ~5cm de large
-  logoHeight: convertMillimetersToTwip(15), // ~1.5cm de haut
+  bannerWidthEmu: 8086725,     // EMU (~22.5cm, pleine largeur bord à bord)
+  bannerHeightEmu: 1471613,    // EMU (~4.1cm)
+  bannerOffsetXEmu: -1333499,  // EMU (décalage gauche pour déborder de la marge)
+  bannerOffsetYEmu: -433387,   // EMU (décalage haut)
+  logoWidthPx: 140,            // ~5cm / 1.95"
+  logoHeightPx: 109,           // ~3.9cm / 1.52"
 } as const;
 
 // Footer paraphe dimensions
 export const FOOTER = {
-  parapheWidth: 497310,   // EMU (~1.3cm)
-  parapheHeight: 413150,  // EMU (~1.1cm)
-  parapheOffsetX: -571499, // EMU (dans la marge gauche)
+  parapheWidthPx: 40,     // ~1.5cm
+  parapheHeightPx: 33,    // ~1.2cm
+  parapheOffsetXEmu: -571499, // EMU (dans la marge gauche)
 } as const;
 
 // Tampon signature dimensions
 export const SIGNATURE = {
-  tamponWidth: convertMillimetersToTwip(50),  // ~5cm
-  tamponHeight: convertMillimetersToTwip(40), // ~4cm
+  tamponWidthPx: 180,   // ~5cm
+  tamponHeightPx: 140,  // ~4cm
 } as const;
 
 // Comment box dimensions
