@@ -1,0 +1,57 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Article {
+  id                  Int      @id @default(autoincrement())
+  code                String   @unique @db.VarChar(50)
+  title               String   @db.VarChar(255)
+  orderIndex          Int      @map("order_index")
+  scope               String   @default("common") @db.VarChar(20)
+  contentCommon       String?  @map("content_common")
+  contentClassique    String?  @map("content_classique")
+  contentStudio       String?  @map("content_studio")
+  content20pct        String?  @map("content_20pct")
+  contentParticulier  String?  @map("content_particulier")
+  contentSociete      String?  @map("content_societe")
+  contentZonesCj      String?  @map("content_zones_cj")
+  contentZonesR       String?  @map("content_zones_r")
+  contentSansMenage   String?  @map("content_sans_menage")
+  isPageBreakBefore   Boolean  @default(false) @map("is_page_break_before")
+  keepTogether        Boolean  @default(true) @map("keep_together")
+  updatedAt           DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@map("articles")
+  @@index([orderIndex], map: "idx_articles_order")
+}
+
+model Contract {
+  id                    Int     @id @default(autoincrement())
+  code                  String  @unique @db.VarChar(20)
+  commissionType        String  @map("commission_type") @db.VarChar(20)
+  statutType            String  @map("statut_type") @db.VarChar(20)
+  menageType            String  @map("menage_type") @db.VarChar(20)
+  googleDocId           String? @map("google_doc_id") @db.VarChar(100)
+  docusignTemplateName  String? @map("docusign_template_name") @db.VarChar(255)
+  docusignPowerformId   String? @map("docusign_powerform_id") @db.VarChar(100)
+  docusignTemplateId    String? @map("docusign_template_id") @db.VarChar(100)
+
+  @@map("contracts")
+}
+
+model Version {
+  id                    Int      @id @default(autoincrement())
+  versionNumber         Int      @map("version_number")
+  description           String?
+  archiveDriveFolderId  String?  @map("archive_drive_folder_id") @db.VarChar(100)
+  pushedAt              DateTime @default(now()) @map("pushed_at")
+  pushedBy              String?  @map("pushed_by") @db.VarChar(100)
+
+  @@map("versions")
+  @@index([versionNumber(sort: Desc)], map: "idx_versions_number")
+}
