@@ -26,10 +26,10 @@ Chaque entrée suit ce format :
 - **⚠️ Impact :** Fichier fondation. Ne JAMAIS modifier sans validation Loïc.
 
 ### `src/lib/contract-assembler.ts`
-- **Exporte :** [placeholder — pas encore implémenté]
+- **Exporte :** `assembleContract(articles: Article[], contract: Contract): AssembledArticle[]`
 - **Utilisé par :** `src/app/api/generate/route.ts`
-- **Dépend de :** `src/lib/db.ts`, `src/config/contracts.ts`
-- **⚠️ Impact :** Logique métier critique — si un article est mal assemblé, le contrat signé sera faux.
+- **Dépend de :** `src/types/index.ts` (Article, Contract, AssembledArticle)
+- **⚠️ Impact :** Logique métier critique — sélection du contenu par scope + numérotation dynamique 2.2.x/2.4.x. Si un article est mal assemblé, le contrat signé sera faux.
 
 ### `src/lib/docx-generator.ts`
 - **Exporte :** [placeholder — pas encore implémenté]
@@ -105,8 +105,8 @@ Chaque entrée suit ce format :
 ## Types
 
 ### `src/types/index.ts`
-- **Exporte :** `Article` (interface), `ApiResponse<T>` (interface générique)
-- **Utilisé par :** `src/components/ArticleEditor.tsx`, `src/components/VariantTabs.tsx`, `src/app/editor/page.tsx`
+- **Exporte :** `Article`, `Contract`, `AssembledArticle`, `ApiResponse<T>`
+- **Utilisé par :** `src/components/ArticleEditor.tsx`, `src/components/VariantTabs.tsx`, `src/app/editor/page.tsx`, `src/lib/contract-assembler.ts`
 - **Dépend de :** rien
 
 ---

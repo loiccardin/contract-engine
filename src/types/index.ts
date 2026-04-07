@@ -18,6 +18,28 @@ export interface Article {
   updatedAt: string;
 }
 
+export interface Contract {
+  id: number;
+  code: string;
+  commissionType: "classique" | "studio" | "20pct";
+  statutType: "particulier" | "societe";
+  menageType: "zones_cj" | "zones_r" | "sans_menage";
+  googleDocId: string | null;
+  docusignTemplateName: string | null;
+  docusignPowerformId: string | null;
+  docusignTemplateId: string | null;
+}
+
+export interface AssembledArticle {
+  code: string;
+  title: string;
+  content: string;
+  orderIndex: number;
+  isPageBreakBefore: boolean;
+  keepTogether: boolean;
+  sectionNumber: string | null;
+}
+
 export interface ApiResponse<T> {
   success: boolean;
   data?: T;
