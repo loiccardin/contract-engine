@@ -1,5 +1,6 @@
 import * as fs from "fs";
 import * as path from "path";
+import JSZip from "jszip";
 import {
   Document,
   Packer,
@@ -7,7 +8,6 @@ import {
   TextRun,
   Header,
   Footer,
-  PageNumber,
   ImageRun,
   AlignmentType,
   BorderStyle,
@@ -19,13 +19,20 @@ import {
   PageBreak,
 } from "docx";
 import { AssembledArticle, Contract } from "@/types";
-import { FONTS, FONT_SIZES, PAGE, SPACING, HEADER, FOOTER as FOOTER_STYLE, SIGNATURE } from "@/config/styles";
+import { FONTS, FONT_SIZES, PAGE, SPACING, SIGNATURE } from "@/config/styles";
 
-// ─── Image loading ───
+// ─── File loading ───
+
+function loadFile(relativePath: string): Buffer {
+  return fs.readFileSync(path.join(process.cwd(), relativePath));
+}
+
+function loadTemplate(filename: string): Buffer {
+  return loadFile(`src/templates/${filename}`);
+}
 
 function loadImage(filename: string): Buffer {
-  const imgPath = path.join(process.cwd(), "public", "images", filename);
-  return fs.readFileSync(imgPath);
+  return loadFile(`public/images/${filename}`);
 }
 
 // ─── Anchor tab helper ───
@@ -65,53 +72,37 @@ function parseBulletText(line: string): string {
   return line.replace(/^[\s]*[*\-—·⁠]\s*/, "").trim();
 }
 
-/**
- * Parse le contenu texte brut d'un article en paragraphes DOCX.
- */
-function parseContent(
-  content: string,
-  articleCode: string,
-): Paragraph[] {
+function parseContent(content: string, articleCode: string): Paragraph[] {
   const paragraphs: Paragraph[] = [];
   const lines = content.split("\n");
 
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    const trimmed = line.trim();
-
+    const trimmed = lines[i].trim();
     if (!trimmed) continue;
 
-    // Ligne "ARTICLE X" → titre bold
     if (isArticleHeader(trimmed)) {
       paragraphs.push(
         new Paragraph({
           alignment: AlignmentType.JUSTIFIED,
           spacing: { before: SPACING.afterTitle, after: SPACING.afterTitle, line: SPACING.line },
-          children: [
-            new TextRun({ text: trimmed, font: FONTS.title, size: FONT_SIZES.articleTitle, bold: true }),
-          ],
+          children: [new TextRun({ text: trimmed, font: FONTS.title, size: FONT_SIZES.articleTitle, bold: true })],
         })
       );
       continue;
     }
 
-    // Sous-section numérotée (ex: "2.2.1.1. Services de ménage")
     if (isSubsectionTitle(trimmed)) {
       paragraphs.push(
         new Paragraph({
           alignment: AlignmentType.JUSTIFIED,
           spacing: { before: SPACING.afterParagraph, after: SPACING.afterParagraph, line: SPACING.line },
-          children: [
-            new TextRun({ text: trimmed, font: FONTS.title, size: FONT_SIZES.articleTitle, bold: true }),
-          ],
+          children: [new TextRun({ text: trimmed, font: FONTS.title, size: FONT_SIZES.articleTitle, bold: true })],
         })
       );
       continue;
     }
 
-    // Ligne à puce
     if (isBulletLine(trimmed)) {
-      const bulletText = parseBulletText(trimmed);
       paragraphs.push(
         new Paragraph({
           alignment: AlignmentType.JUSTIFIED,
@@ -119,14 +110,14 @@ function parseContent(
           indent: { left: 360 },
           children: [
             new TextRun({ text: "•  ", font: FONTS.body, size: FONT_SIZES.body }),
-            new TextRun({ text: bulletText, font: FONTS.body, size: FONT_SIZES.body }),
+            new TextRun({ text: parseBulletText(trimmed), font: FONTS.body, size: FONT_SIZES.body }),
           ],
         })
       );
       continue;
     }
 
-    // Anchor tabs dans en_tete_proprietaire
+    // Anchor tabs in en_tete_proprietaire
     if (articleCode === "en_tete_proprietaire") {
       const anchors: [string, string][] = [
         ["Nom et Prénoms ou Forme et Dénomination", "/nm1/"],
@@ -138,8 +129,7 @@ function parseContent(
         ["Mail", "/ml1/"],
         ["Adresse du/des LOGEMENT", "/lg1/"],
       ];
-
-      let foundAnchor = false;
+      let found = false;
       for (const [prefix, tag] of anchors) {
         if (trimmed.startsWith(prefix)) {
           paragraphs.push(
@@ -152,14 +142,13 @@ function parseContent(
               ],
             })
           );
-          foundAnchor = true;
+          found = true;
           break;
         }
       }
-      if (foundAnchor) continue;
+      if (found) continue;
     }
 
-    // Lignes en gras
     const isBoldLine =
       trimmed === "ENTRE LES SOUSSIGNÉS" ||
       trimmed === "LE PROPRIÉTAIRE" ||
@@ -170,34 +159,24 @@ function parseContent(
       trimmed.startsWith("IL EST PRÉALABLEMENT RAPPELÉ") ||
       trimmed.startsWith("CECI EXPOSÉ");
 
-    // Lignes centrées — "PROMESSE DE CONTRAT" et "DE PRESTATION DE SERVICES" en 20pt
-    // "CONCIERGERIE" en 10pt gras centré (pas 20pt)
-    const isBigTitle =
-      trimmed === "PROMESSE DE CONTRAT" ||
-      trimmed === "DE PRESTATION DE SERVICES";
-
-    const isSmallCenteredTitle = trimmed.startsWith("CONCIERGERIE");
-
-    const isCentered = isBigTitle || isSmallCenteredTitle;
-    const alignment = isCentered ? AlignmentType.CENTER : AlignmentType.JUSTIFIED;
+    const isBigTitle = trimmed === "PROMESSE DE CONTRAT" || trimmed === "DE PRESTATION DE SERVICES";
+    const isSmallCentered = trimmed.startsWith("CONCIERGERIE");
+    const isCentered = isBigTitle || isSmallCentered;
 
     let fontSize: number = FONT_SIZES.body;
     if (isBigTitle) fontSize = FONT_SIZES.docTitle;
-    if (isSmallCenteredTitle) fontSize = FONT_SIZES.subTitle;
-
-    const isBold = isBoldLine || isCentered;
 
     paragraphs.push(
       new Paragraph({
-        alignment,
+        alignment: isCentered ? AlignmentType.CENTER : AlignmentType.JUSTIFIED,
         spacing: { after: SPACING.afterParagraph, line: SPACING.line },
         children: [
           new TextRun({
             text: trimmed,
             font: FONTS.body,
             size: fontSize,
-            bold: isBold,
-            underline: trimmed.startsWith("ENTRE LES SOUSSIGNÉS") || trimmed.startsWith("IL EST PRÉALABLEMENT") || trimmed.startsWith("CECI EXPOSÉ") ? {} : undefined,
+            bold: isBoldLine || isCentered,
+            underline: (trimmed.startsWith("ENTRE LES SOUSSIGNÉS") || trimmed.startsWith("IL EST PRÉALABLEMENT") || trimmed.startsWith("CECI EXPOSÉ")) ? {} : undefined,
           }),
         ],
       })
@@ -212,11 +191,8 @@ function parseContent(
 function buildCommentBox(): Paragraph[] {
   return [
     new Paragraph({
-      alignment: AlignmentType.JUSTIFIED,
       spacing: { before: SPACING.afterTitle, after: SPACING.afterParagraph, line: SPACING.line },
-      children: [
-        new TextRun({ text: "ARTICLE 9 - COMMENTAIRES", font: FONTS.title, size: FONT_SIZES.articleTitle, bold: true }),
-      ],
+      children: [new TextRun({ text: "ARTICLE 9 - COMMENTAIRES", font: FONTS.title, size: FONT_SIZES.articleTitle, bold: true })],
     }),
     new Paragraph({
       border: {
@@ -225,18 +201,12 @@ function buildCommentBox(): Paragraph[] {
         left: { style: BorderStyle.SINGLE, size: 6, color: "000000" },
         right: { style: BorderStyle.SINGLE, size: 6, color: "000000" },
       },
-      spacing: { after: 0, line: SPACING.line },
-      children: [
-        anchorTab("/cm1/"),
-        new TextRun({ text: "", font: FONTS.body, size: FONT_SIZES.body }),
-      ],
+      spacing: { after: 0 },
+      children: [anchorTab("/cm1/"), new TextRun({ text: "", font: FONTS.body, size: FONT_SIZES.body })],
     }),
     ...Array.from({ length: 6 }, () =>
       new Paragraph({
-        border: {
-          left: { style: BorderStyle.SINGLE, size: 6, color: "000000" },
-          right: { style: BorderStyle.SINGLE, size: 6, color: "000000" },
-        },
+        border: { left: { style: BorderStyle.SINGLE, size: 6, color: "000000" }, right: { style: BorderStyle.SINGLE, size: 6, color: "000000" } },
         children: [new TextRun({ text: " ", font: FONTS.body, size: FONT_SIZES.body })],
       })
     ),
@@ -254,36 +224,14 @@ function buildCommentBox(): Paragraph[] {
 
 function buildSignatureBlock(content: string, tamponImage: Buffer): Paragraph[] {
   const paras = parseContent(content, "bloc_signature");
-
   paras.push(
-    new Paragraph({
-      spacing: { before: 200, line: SPACING.line },
-      children: [
-        anchorTab("/vi1/"),
-        anchorTab("/dt1/"),
-      ],
-    }),
-    new Paragraph({
-      spacing: { before: 400, line: SPACING.line },
-      children: [
-        anchorTab("/sn1/"),
-      ],
-    })
-  );
-
-  paras.push(
+    new Paragraph({ spacing: { before: 200 }, children: [anchorTab("/vi1/"), anchorTab("/dt1/")] }),
+    new Paragraph({ spacing: { before: 400 }, children: [anchorTab("/sn1/")] }),
     new Paragraph({
       alignment: AlignmentType.RIGHT,
-      children: [
-        new ImageRun({
-          data: tamponImage,
-          transformation: { width: SIGNATURE.tamponWidthPx, height: SIGNATURE.tamponHeightPx },
-          type: "png",
-        }),
-      ],
+      children: [new ImageRun({ data: tamponImage, transformation: { width: SIGNATURE.tamponWidthPx, height: SIGNATURE.tamponHeightPx }, type: "png" })],
     })
   );
-
   return paras;
 }
 
@@ -293,16 +241,8 @@ function buildAnnexeTable(content: string): Paragraph[] {
   paragraphs.push(
     new Paragraph({
       alignment: AlignmentType.CENTER,
-      spacing: { before: SPACING.afterTitle, after: SPACING.afterTitle, line: SPACING.line },
-      children: [
-        new TextRun({
-          text: "ANNEXE 2 - GRILLE ESTIMATIVE MÉNAGE",
-          font: FONTS.title,
-          size: FONT_SIZES.articleTitle,
-          bold: true,
-          underline: {},
-        }),
-      ],
+      spacing: { before: SPACING.afterTitle, after: SPACING.afterTitle },
+      children: [new TextRun({ text: "ANNEXE 2 - GRILLE ESTIMATIVE MÉNAGE", font: FONTS.title, size: FONT_SIZES.articleTitle, bold: true, underline: {} })],
     })
   );
 
@@ -312,21 +252,9 @@ function buildAnnexeTable(content: string): Paragraph[] {
   tableRows.push(
     new TableRow({
       children: [
-        new TableCell({
-          width: { size: 3000, type: WidthType.DXA },
-          shading: { type: ShadingType.SOLID, color: "000000" },
-          children: [new Paragraph({ children: [new TextRun({ text: "TYPOLOGIE", font: FONTS.body, size: 18, bold: true, color: "FFFFFF" })] })],
-        }),
-        new TableCell({
-          width: { size: 2000, type: WidthType.DXA },
-          shading: { type: ShadingType.SOLID, color: "000000" },
-          children: [new Paragraph({ children: [new TextRun({ text: "SUPERFICIE", font: FONTS.body, size: 18, bold: true, color: "FFFFFF" })] })],
-        }),
-        new TableCell({
-          width: { size: 4000, type: WidthType.DXA },
-          shading: { type: ShadingType.SOLID, color: "000000" },
-          children: [new Paragraph({ children: [new TextRun({ text: "FORFAIT [Ménage+Linge+Consommables]", font: FONTS.body, size: 18, bold: true, color: "FFFFFF" })] })],
-        }),
+        new TableCell({ width: { size: 3000, type: WidthType.DXA }, shading: { type: ShadingType.SOLID, color: "000000" }, children: [new Paragraph({ children: [new TextRun({ text: "TYPOLOGIE", font: FONTS.body, size: 18, bold: true, color: "FFFFFF" })] })] }),
+        new TableCell({ width: { size: 2000, type: WidthType.DXA }, shading: { type: ShadingType.SOLID, color: "000000" }, children: [new Paragraph({ children: [new TextRun({ text: "SUPERFICIE", font: FONTS.body, size: 18, bold: true, color: "FFFFFF" })] })] }),
+        new TableCell({ width: { size: 4000, type: WidthType.DXA }, shading: { type: ShadingType.SOLID, color: "000000" }, children: [new Paragraph({ children: [new TextRun({ text: "FORFAIT [Ménage+Linge+Consommables]", font: FONTS.body, size: 18, bold: true, color: "FFFFFF" })] })] }),
       ],
     })
   );
@@ -335,75 +263,72 @@ function buildAnnexeTable(content: string): Paragraph[] {
   let currentSize = "";
   for (const line of lines) {
     const trimmed = line.trim();
-
-    if (
-      trimmed.startsWith("ANNEXE") ||
-      trimmed.startsWith("TYPOLOGIE") ||
-      trimmed.startsWith("EXEMPLE") ||
-      trimmed.startsWith("[Ménage") ||
-      trimmed === "SUPERFICIE"
-    ) continue;
-
-    if (/^(Studio|T\d|T1\/T1bis)/.test(trimmed)) {
-      currentType = trimmed;
-      continue;
-    }
-
-    if (/^\d+\s*(seule|chambre)/.test(trimmed) || trimmed.startsWith(">")) {
-      currentSize = trimmed;
-      continue;
-    }
-
-    if (/^\d+-\d+m2/.test(trimmed) || /^>\s*\d+m2/.test(trimmed)) {
-      currentSize = trimmed;
-      continue;
-    }
-
-    const priceMatch = trimmed.match(/^(\d+\s*[Ll]its?\s*):?\s*$/);
-    if (priceMatch) continue;
+    if (trimmed.startsWith("ANNEXE") || trimmed.startsWith("TYPOLOGIE") || trimmed.startsWith("EXEMPLE") || trimmed.startsWith("[Ménage") || trimmed === "SUPERFICIE") continue;
+    if (/^(Studio|T\d|T1\/T1bis)/.test(trimmed)) { currentType = trimmed; continue; }
+    if (/^\d+\s*(seule|chambre)/.test(trimmed) || trimmed.startsWith(">")) { currentSize = trimmed; continue; }
+    if (/^\d+-\d+m2/.test(trimmed) || /^>\s*\d+m2/.test(trimmed)) { currentSize = trimmed; continue; }
+    if (/^(\d+\s*[Ll]its?\s*):?\s*$/.test(trimmed)) continue;
 
     const priceVal = trimmed.match(/^(\d+)\s*€$/);
     if (priceVal) {
       const prevLine = lines[lines.indexOf(line) - 1]?.trim() || "";
       const bedMatch = prevLine.match(/^(\d+)\s*[Ll]its?\s*:?/);
       const beds = bedMatch ? bedMatch[0].replace(/:$/, "").trim() : "";
-
       tableRows.push(
         new TableRow({
           children: [
-            new TableCell({
-              width: { size: 3000, type: WidthType.DXA },
-              children: [new Paragraph({ children: [new TextRun({ text: currentType, font: FONTS.body, size: 18 })] })],
-            }),
-            new TableCell({
-              width: { size: 2000, type: WidthType.DXA },
-              children: [new Paragraph({ children: [new TextRun({ text: currentSize, font: FONTS.body, size: 18 })] })],
-            }),
-            new TableCell({
-              width: { size: 4000, type: WidthType.DXA },
-              children: [new Paragraph({ children: [new TextRun({ text: `${beds} : ${priceVal[1]}€`, font: FONTS.body, size: 18 })] })],
-            }),
+            new TableCell({ width: { size: 3000, type: WidthType.DXA }, children: [new Paragraph({ children: [new TextRun({ text: currentType, font: FONTS.body, size: 18 })] })] }),
+            new TableCell({ width: { size: 2000, type: WidthType.DXA }, children: [new Paragraph({ children: [new TextRun({ text: currentSize, font: FONTS.body, size: 18 })] })] }),
+            new TableCell({ width: { size: 4000, type: WidthType.DXA }, children: [new Paragraph({ children: [new TextRun({ text: `${beds} : ${priceVal[1]}€`, font: FONTS.body, size: 18 })] })] }),
           ],
         })
       );
       currentType = "";
       currentSize = "";
-      continue;
     }
   }
 
   if (tableRows.length > 1) {
-    paragraphs.push(
-      new Table({
-        width: { size: 9000, type: WidthType.DXA },
-        rows: tableRows,
-      }) as unknown as Paragraph
-    );
+    paragraphs.push(new Table({ width: { size: 9000, type: WidthType.DXA }, rows: tableRows }) as unknown as Paragraph);
   } else {
     paragraphs.push(...parseContent(content, "annexe_2"));
   }
 
   return paragraphs;
+}
+
+// ─── ZIP post-processing: inject reference header/footer ───
+
+async function injectTemplateHeaderFooter(docxBuffer: Buffer): Promise<Buffer> {
+  const zip = await JSZip.loadAsync(docxBuffer);
+
+  // Load template assets
+  const headerXml = loadTemplate("header1.xml");
+  const footerXml = loadTemplate("footer1.xml");
+  const headerRels = loadTemplate("header1.xml.rels");
+  const footerRels = loadTemplate("footer1.xml.rels");
+  const pixelBlack = loadTemplate("pixel-black.png");
+  const logoHeader = loadTemplate("logo-header.png");
+  const parapheFooter = loadTemplate("paraphe-footer.jpg");
+
+  // Replace header and footer XML
+  zip.file("word/header1.xml", headerXml);
+  zip.file("word/footer1.xml", footerXml);
+  zip.file("word/_rels/header1.xml.rels", headerRels);
+  zip.file("word/_rels/footer1.xml.rels", footerRels);
+
+  // Inject media files referenced by header/footer
+  // header1.xml.rels: rId1 → image5.png (pixel noir), rId2 → image2.png (logo)
+  // footer1.xml.rels: rId1 → image1.jpg (paraphe), rId2 → image5.png (pixel noir)
+  zip.file("word/media/image5.png", pixelBlack);
+  zip.file("word/media/image2.png", logoHeader);
+  zip.file("word/media/image1.jpg", parapheFooter);
+
+  // The docx lib already created headerReference/footerReference in sectPr
+  // and the relationships in document.xml.rels — we just replaced the XML/media files
+
+  const result = await zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });
+  return Buffer.from(result);
 }
 
 // ─── Main generator ───
@@ -413,11 +338,8 @@ export async function generateDocx(
   contract: Contract
 ): Promise<Buffer> {
   void contract;
-  const logoImage = loadImage("letahost-logo.png");
-  const parapheImage = loadImage("paraphe-lc.jpeg");
   const tamponImage = loadImage("tampon-letahost.png");
 
-  // Build all section children
   const children: Paragraph[] = [];
 
   for (const article of assembledArticles) {
@@ -425,25 +347,14 @@ export async function generateDocx(
       children.push(new Paragraph({ children: [new PageBreak()] }));
     }
 
-    if (article.code === "art_9") {
-      children.push(...buildCommentBox());
-      continue;
-    }
+    if (article.code === "art_9") { children.push(...buildCommentBox()); continue; }
+    if (article.code === "bloc_signature") { children.push(...buildSignatureBlock(article.content, tamponImage)); continue; }
+    if (article.code === "annexe_2") { children.push(...buildAnnexeTable(article.content)); continue; }
 
-    if (article.code === "bloc_signature") {
-      children.push(...buildSignatureBlock(article.content, tamponImage));
-      continue;
-    }
-
-    if (article.code === "annexe_2") {
-      children.push(...buildAnnexeTable(article.content));
-      continue;
-    }
-
-    const contentParagraphs = parseContent(article.content, article.code);
-    children.push(...contentParagraphs);
+    children.push(...parseContent(article.content, article.code));
   }
 
+  // Generate DOCX with minimal header/footer (will be replaced)
   const doc = new Document({
     sections: [
       {
@@ -461,92 +372,19 @@ export async function generateDocx(
           },
         },
         headers: {
-          default: new Header({
-            children: [
-              // Rectangle noir pleine largeur (bandeau) via image flottante behind document
-              new Paragraph({
-                children: [
-                  // Bandeau noir : rectangle noir en arrière-plan, pleine largeur
-                  new ImageRun({
-                    data: logoImage,
-                    transformation: {
-                      width: HEADER.logoWidthPx,
-                      height: HEADER.logoHeightPx,
-                    },
-                    type: "png",
-                    floating: {
-                      horizontalPosition: { align: "center" },
-                      verticalPosition: {
-                        offset: 114300, // ~1cm from top of header
-                      },
-                      allowOverlap: true,
-                      behindDocument: false,
-                    },
-                  }),
-                ],
-              }),
-              // Black banner paragraphs to create the background
-              ...Array.from({ length: 4 }, () =>
-                new Paragraph({
-                  shading: { type: ShadingType.SOLID, color: "000000" },
-                  spacing: { after: 0, line: 240 },
-                  indent: { left: -PAGE.margin.left, right: -PAGE.margin.right },
-                  children: [new TextRun({ text: " ", size: 4, color: "000000" })],
-                })
-              ),
-            ],
-          }),
+          default: new Header({ children: [new Paragraph({ children: [new TextRun({ text: " ", size: 2 })] })] }),
         },
         footers: {
-          default: new Footer({
-            children: [
-              new Paragraph({
-                alignment: AlignmentType.LEFT,
-                children: [
-                  // Paraphe LC — image flottante en bas à gauche
-                  new ImageRun({
-                    data: parapheImage,
-                    transformation: {
-                      width: FOOTER_STYLE.parapheWidthPx,
-                      height: FOOTER_STYLE.parapheHeightPx,
-                    },
-                    type: "jpg",
-                    floating: {
-                      horizontalPosition: { offset: FOOTER_STYLE.parapheOffsetXEmu },
-                      verticalPosition: { offset: -133350 },
-                      allowOverlap: true,
-                      behindDocument: false,
-                    },
-                  }),
-                  // Anchor tab /ini1/ pour paraphe propriétaire DocuSign (invisible)
-                  anchorTab("/ini1/"),
-                ],
-              }),
-              // Page number centered: X/Y
-              new Paragraph({
-                alignment: AlignmentType.CENTER,
-                children: [
-                  new TextRun({
-                    children: [PageNumber.CURRENT],
-                    font: FONTS.body,
-                    size: FONT_SIZES.body,
-                  }),
-                  new TextRun({ text: "/", font: FONTS.body, size: FONT_SIZES.body }),
-                  new TextRun({
-                    children: [PageNumber.TOTAL_PAGES],
-                    font: FONTS.body,
-                    size: FONT_SIZES.body,
-                  }),
-                ],
-              }),
-            ],
-          }),
+          default: new Footer({ children: [new Paragraph({ children: [new TextRun({ text: " ", size: 2 })] })] }),
         },
         children,
       },
     ],
   });
 
-  const buffer = await Packer.toBuffer(doc);
-  return Buffer.from(buffer);
+  const rawBuffer = await Packer.toBuffer(doc);
+
+  // Post-process: inject reference header/footer from template
+  const finalBuffer = await injectTemplateHeaderFooter(Buffer.from(rawBuffer));
+  return finalBuffer;
 }
