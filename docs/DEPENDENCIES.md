@@ -177,9 +177,15 @@ Chaque entrée suit ce format :
 ## Scripts
 
 ### `prisma/seed.ts`
-- **Exporte :** rien (script standalone)
+- **Exporte :** rien (script standalone — seed des 18 contrats)
 - **Utilisé par :** `npx prisma db seed`
 - **Dépend de :** `dotenv`, `pg`, `@prisma/adapter-pg`, `src/generated/prisma/client`
+
+### `scripts/seed-articles.ts`
+- **Exporte :** rien (script standalone — seed des 39 articles avec texte juridique verbatim)
+- **Utilisé par :** `npx tsx scripts/seed-articles.ts`
+- **Dépend de :** `dotenv`, `pg`, `@prisma/adapter-pg`, `src/generated/prisma/client`
+- **⚠️ Impact :** Texte juridique verbatim. Ne JAMAIS reformuler le contenu.
 
 ---
 
@@ -197,4 +203,4 @@ Chaque entrée suit ce format :
 ---
 
 > **Dernière mise à jour :** 2026-04-07
-> **Mis à jour par :** Claude Code (feat: éditeur d'articles)
+> **Mis à jour par :** Claude Code (feat: seed 39 articles)
