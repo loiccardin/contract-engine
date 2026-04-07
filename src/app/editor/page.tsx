@@ -57,31 +57,34 @@ export default function EditorPage() {
 
   if (!authenticated) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
         <form
           onSubmit={handleLogin}
-          className="bg-white p-8 rounded-lg shadow-sm border border-gray-200 w-full max-w-sm"
+          className="bg-white p-8 rounded-2xl shadow-lg border border-gray-100 w-full max-w-sm"
         >
-          <h1 className="text-lg font-semibold text-gray-900 mb-4">
-            Contract Engine
-          </h1>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <div className="mb-6">
+            <h1 className="text-xl font-semibold text-gray-900">
+              Contract Engine
+            </h1>
+            <p className="text-sm text-gray-400 mt-1">Gestion des contrats Letahost</p>
+          </div>
+          <label className="block text-sm font-medium text-gray-600 mb-1.5">
             Token d&apos;accès
           </label>
           <input
             type="password"
             value={token}
             onChange={(e) => setToken(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            placeholder="APP_SECRET"
+            className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent focus:bg-white transition-colors"
+            placeholder="Collez votre APP_SECRET"
           />
           {error && (
-            <p className="mt-2 text-sm text-red-600">{error}</p>
+            <p className="mt-2.5 text-sm text-red-500">{error}</p>
           )}
           <button
             type="submit"
             disabled={loading}
-            className="mt-4 w-full px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 disabled:opacity-50 transition-colors"
+            className="mt-5 w-full px-4 py-2.5 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-800 disabled:opacity-50 transition-colors"
           >
             {loading ? "Connexion..." : "Se connecter"}
           </button>
@@ -91,8 +94,8 @@ export default function EditorPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b border-gray-200 px-6 py-4">
+    <div className="min-h-screen bg-slate-50">
+      <header className="bg-white border-b border-gray-200 px-6 py-4 sticky top-0 z-10">
         <div className="max-w-4xl mx-auto flex items-center justify-between">
           <h1 className="text-lg font-semibold text-gray-900">
             Contract Engine
@@ -102,18 +105,28 @@ export default function EditorPage() {
       </header>
 
       <main className="max-w-4xl mx-auto px-6 py-8">
-        <div className="mb-6">
-          <h2 className="text-xl font-semibold text-gray-900">
+        <div className="mb-8">
+          <h2 className="text-2xl font-semibold text-gray-900">
             Articles du template
           </h2>
-          <p className="text-sm text-gray-500 mt-1">
-            {articles.length} article{articles.length !== 1 ? "s" : ""} — Modifiez le contenu puis cliquez sur Enregistrer.
+          <p className="text-sm text-gray-400 mt-1.5 font-light">
+            {articles.length} article{articles.length !== 1 ? "s" : ""} — Cliquez pour modifier, puis enregistrez.
           </p>
         </div>
 
+        {loading && (
+          <div className="flex items-center justify-center py-20">
+            <svg className="animate-spin w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            </svg>
+          </div>
+        )}
+
         {articles.length === 0 && !loading && (
-          <div className="text-center py-12 text-gray-400">
-            Aucun article. Exécutez le seed pour importer les articles.
+          <div className="text-center py-16 text-gray-400">
+            <p className="text-lg">Aucun article</p>
+            <p className="text-sm mt-1">Exécutez le seed pour importer les articles.</p>
           </div>
         )}
 
