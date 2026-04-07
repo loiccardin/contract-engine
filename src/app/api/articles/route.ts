@@ -1,8 +1,22 @@
-// GET /api/articles — Liste tous les articles triés par order_index
-// PUT /api/articles — (via /api/articles/[id]) Met à jour le contenu d'un article
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/db";
+import { authenticate } from "@/lib/auth";
 
-import { NextResponse } from "next/server";
+export async function GET(request: NextRequest) {
+  const authError = authenticate(request);
+  if (authError) return authError;
 
-export async function GET() {
-  return NextResponse.json({ success: true, data: [] });
+  try {
+    const articles = await prisma.article.findMany({
+      orderBy: { orderIndex: "asc" },
+    });
+
+    return NextResponse.json({ success: true, data: articles });
+  } catch (error) {
+    console.error("GET /api/articles error:", error);
+    return NextResponse.json(
+      { success: false, error: "Erreur lors de la récupération des articles" },
+      { status: 500 }
+    );
+  }
 }

@@ -48,9 +48,9 @@ Chaque entrée suit ce format :
 ## Lib
 
 ### `src/lib/auth.ts`
-- **Exporte :** `authenticate` (fonction middleware vérifiant le Bearer token)
-- **Utilisé par :** toutes les routes API
-- **Dépend de :** `next/server` (NextRequest, NextResponse)
+- **Exporte :** `authenticate(request: NextRequest): NextResponse | null` — retourne null si OK, NextResponse 401 si échec
+- **Utilisé par :** `src/app/api/articles/route.ts`, `src/app/api/articles/[id]/route.ts`, toutes les routes API
+- **Dépend de :** `next/server` (NextRequest, NextResponse), `process.env.APP_SECRET`
 
 ### `src/lib/google-drive.ts`
 - **Exporte :** [placeholder — pas encore implémenté]
@@ -76,14 +76,14 @@ Chaque entrée suit ce format :
 ## Composants
 
 ### `src/components/ArticleEditor.tsx`
-- **Exporte :** [placeholder — pas encore implémenté]
+- **Exporte :** `ArticleEditor` (composant accordéon : titre cliquable, textarea, bouton Enregistrer, feedback sauvegarde)
 - **Utilisé par :** `src/app/editor/page.tsx`
-- **Dépend de :** `src/types/index.ts`
+- **Dépend de :** `react` (useState), `src/types/index.ts`, `src/components/VariantTabs.tsx`
 
 ### `src/components/VariantTabs.tsx`
-- **Exporte :** [placeholder — pas encore implémenté]
+- **Exporte :** `VariantTabs` (onglets dynamiques selon scope : common=textarea seul, commission=3 onglets, statut=2 onglets, menage=3 onglets)
 - **Utilisé par :** `src/components/ArticleEditor.tsx`
-- **Dépend de :** `src/types/index.ts`
+- **Dépend de :** `react` (useState), `src/types/index.ts`
 
 ### `src/components/ContractList.tsx`
 - **Exporte :** [placeholder — pas encore implémenté]
@@ -96,8 +96,8 @@ Chaque entrée suit ce format :
 - **Dépend de :** `src/types/index.ts`
 
 ### `src/components/StepIndicator.tsx`
-- **Exporte :** [placeholder — pas encore implémenté]
-- **Utilisé par :** `src/app/layout.tsx` ou pages
+- **Exporte :** `StepIndicator` (barre 3 étapes : Modifier/Générer/Pousser, prop `currentStep`)
+- **Utilisé par :** `src/app/editor/page.tsx`
 - **Dépend de :** rien
 
 ---
@@ -105,8 +105,8 @@ Chaque entrée suit ce format :
 ## Types
 
 ### `src/types/index.ts`
-- **Exporte :** [placeholder — pas encore implémenté]
-- **Utilisé par :** composants, routes API
+- **Exporte :** `Article` (interface), `ApiResponse<T>` (interface générique)
+- **Utilisé par :** `src/components/ArticleEditor.tsx`, `src/components/VariantTabs.tsx`, `src/app/editor/page.tsx`
 - **Dépend de :** rien
 
 ---
@@ -114,8 +114,13 @@ Chaque entrée suit ce format :
 ## Routes API
 
 ### `src/app/api/articles/route.ts`
-- **Exporte :** `GET`, `PUT`
-- **Utilisé par :** frontend via fetch
+- **Exporte :** `GET` (liste articles triés par order_index)
+- **Utilisé par :** `src/app/editor/page.tsx` via fetch
+- **Dépend de :** `src/lib/db.ts`, `src/lib/auth.ts`
+
+### `src/app/api/articles/[id]/route.ts`
+- **Exporte :** `GET` (un article par ID), `PUT` (mise à jour partielle)
+- **Utilisé par :** `src/components/ArticleEditor.tsx` via fetch
 - **Dépend de :** `src/lib/db.ts`, `src/lib/auth.ts`
 
 ### `src/app/api/generate/route.ts`
@@ -148,9 +153,9 @@ Chaque entrée suit ce format :
 - **Dépend de :** `next/navigation`
 
 ### `src/app/editor/page.tsx`
-- **Exporte :** `EditorPage`
+- **Exporte :** `EditorPage` (client component — login token + liste articles en accordéon)
 - **Utilisé par :** Next.js routing
-- **Dépend de :** [placeholder]
+- **Dépend de :** `react` (useState, useEffect), `src/types/index.ts`, `src/components/StepIndicator.tsx`, `src/components/ArticleEditor.tsx`
 
 ### `src/app/generate/page.tsx`
 - **Exporte :** `GeneratePage`
@@ -192,4 +197,4 @@ Chaque entrée suit ce format :
 ---
 
 > **Dernière mise à jour :** 2026-04-07
-> **Mis à jour par :** Claude Code (init technique)
+> **Mis à jour par :** Claude Code (feat: éditeur d'articles)
