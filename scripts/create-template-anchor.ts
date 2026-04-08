@@ -43,6 +43,7 @@ async function main() {
   await deleteTemplate(token, "038b7c11-863e-4a1f-889d-0b6982e0f7aa"); // V1
   await deleteTemplate(token, "146808bb-54cd-43ef-8638-8e49abc6f213"); // V2
   await deleteTemplate(token, "0ce7705d-3429-492c-b864-c5fd24594940"); // V3
+  await deleteTemplate(token, "f30c3907-e667-40c9-8607-3c2d3a6f637d"); // V4
 
   // 1. Generate DOCX → PDF
   console.log("\n1. Génération DOCX...");
@@ -99,13 +100,13 @@ async function main() {
     // Logement page 1 — marker on its own line below
     { anchorString: "/lg1/", ...a0, ...s9, ...common, tabLabel: "adresse_logement", value: "Adresse du ou des biens exploités en LCD", required: "true", width: 563, height: 35 },
     // Logement page 2
-    { anchorString: "/lg2/", ...a0, ...s9, ...common, tabLabel: "adresse_logement_2", value: "Adresse du ou des biens exploités en LCD", required: "true", width: 522, height: 54 },
+    { anchorString: "/lg2/", ...a0, ...s9, ...common, tabLabel: "adresse_logement_2", value: "Adresse du ou des biens exploités en LCD", required: "true", width: 563, height: 35 },
     // Article 9 — commentaires (offset into the box)
     { anchorString: "/cm1/", anchorXOffset: "10", anchorYOffset: "10", anchorUnits: "pixels", ...s9, ...common, tabLabel: "commentaires", value: "", required: "false", width: 480, height: 80 },
     // Page signature — ville
     { anchorString: "/vi1/", ...a0, ...s8, ...common, tabLabel: "ville", value: "Ville", required: "true", width: 122, height: 15 },
     // Bon pour accord (15px above signature /sn1/)
-    { anchorString: "/sn1/", anchorXOffset: "0", anchorYOffset: "-15", anchorUnits: "pixels", ...s8, ...common, tabLabel: "bon_pour_accord", value: "Bon pour accord", required: "true", width: 161, height: 16 },
+    { anchorString: "/sn1/", anchorXOffset: "0", anchorYOffset: "-30", anchorUnits: "pixels", ...s8, ...common, tabLabel: "bon_pour_accord", value: "Bon pour accord", required: "true", width: 161, height: 16 },
   ];
 
   const body = {
@@ -122,7 +123,7 @@ async function main() {
         tabs: {
           textTabs,
           signHereTabs: [{
-            anchorString: "/sn1/", ...a0,
+            anchorString: "/sn1/", anchorXOffset: "0", anchorYOffset: "10", anchorUnits: "pixels",
             scaleValue: "1.25", tabLabel: "signature_proprietaire",
           }],
           dateSignedTabs: [{

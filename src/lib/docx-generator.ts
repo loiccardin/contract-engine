@@ -394,24 +394,26 @@ function buildSignatureBlock(content: string, tamponImage: Buffer, pageBreak: bo
     if (!trimmed) continue;
 
     if (trimmed.startsWith("Réputé fait à")) {
-      // Insert /vi1/ after "Réputé fait à " and /dt1/ after "en deux originaux le :"
-      const parts = trimmed.split(", en deux originaux le :");
-      const part1 = parts[0]; // "Réputé fait à                       "
-      const part2 = parts.length > 1 ? ", en deux originaux le :" + (parts[1] || "") : "";
+      // Insert /vi1/ right after "à " and /dt1/ right after "le : "
+      // Markers are in their own tiny runs (white 2pt) but immediately adjacent
+      const splitPoint = ", en deux originaux le :";
+      const idx = trimmed.indexOf(splitPoint);
+      const beforeSplit = idx >= 0 ? trimmed.slice(0, idx) : trimmed;
+      const afterSplit = idx >= 0 ? trimmed.slice(idx) : "";
       paras.push(
         new Paragraph({
           spacing: { after: SPACING.afterParagraph, line: SPACING.lineBody },
           keepNext: true, keepLines: true,
           pageBreakBefore: pageBreak && paras.length === 0 ? true : undefined,
           children: [
-            new TextRun({ text: part1 + " ", font: FONTS.body, size: FONT_SIZES.body }),
+            new TextRun({ text: beforeSplit, font: FONTS.body, size: FONT_SIZES.body }),
             anchorTab("/vi1/"),
-            new TextRun({ text: part2 + " ", font: FONTS.body, size: FONT_SIZES.body }),
+            new TextRun({ text: afterSplit, font: FONTS.body, size: FONT_SIZES.body }),
             anchorTab("/dt1/"),
           ],
         })
       );
-      pageBreak = false; // consumed
+      pageBreak = false;
     } else {
       paras.push(
         new Paragraph({
