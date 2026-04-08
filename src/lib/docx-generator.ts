@@ -384,16 +384,50 @@ function buildCommentBox(): Paragraph[] {
 }
 
 function buildSignatureBlock(content: string, tamponImage: Buffer, pageBreak: boolean = false): Paragraph[] {
-  const paras = parseContent(content, "bloc_signature", { keepTogether: true, pageBreakBefore: pageBreak });
-  // keepNext on ALL paragraphs so the block stays together on one page
-  for (const p of paras) {
-    (p as unknown as { keepNext: boolean }).keepNext = true;
-    (p as unknown as { keepLines: boolean }).keepLines = true;
+  // Split content into lines and build paragraphs manually for the signature block
+  // to inject /vi1/ and /dt1/ on the "Réputé fait à" line
+  const lines = content.split("\n");
+  const paras: Paragraph[] = [];
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+
+    if (trimmed.startsWith("Réputé fait à")) {
+      // Insert /vi1/ after "Réputé fait à " and /dt1/ after "en deux originaux le :"
+      const parts = trimmed.split(", en deux originaux le :");
+      const part1 = parts[0]; // "Réputé fait à                       "
+      const part2 = parts.length > 1 ? ", en deux originaux le :" + (parts[1] || "") : "";
+      paras.push(
+        new Paragraph({
+          spacing: { after: SPACING.afterParagraph, line: SPACING.lineBody },
+          keepNext: true, keepLines: true,
+          pageBreakBefore: pageBreak && paras.length === 0 ? true : undefined,
+          children: [
+            new TextRun({ text: part1 + " ", font: FONTS.body, size: FONT_SIZES.body }),
+            anchorTab("/vi1/"),
+            new TextRun({ text: part2 + " ", font: FONTS.body, size: FONT_SIZES.body }),
+            anchorTab("/dt1/"),
+          ],
+        })
+      );
+      pageBreak = false; // consumed
+    } else {
+      paras.push(
+        new Paragraph({
+          spacing: { after: SPACING.afterParagraph, line: SPACING.lineBody },
+          keepNext: true, keepLines: true,
+          pageBreakBefore: pageBreak && paras.length === 0 ? true : undefined,
+          children: [new TextRun({ text: trimmed, font: FONTS.body, size: FONT_SIZES.body })],
+        })
+      );
+      pageBreak = false;
+    }
   }
 
+  // /sn1/ on its own line below "Bon pour accord"
   paras.push(
-    new Paragraph({ spacing: { before: 200 }, keepNext: true, keepLines: true, children: [anchorTab("/vi1/"), anchorTab("/dt1/")] }),
-    new Paragraph({ spacing: { before: 400 }, keepNext: true, keepLines: true, children: [anchorTab("/sn1/")] }),
+    new Paragraph({ spacing: { before: 200 }, keepNext: true, keepLines: true, children: [anchorTab("/sn1/")] }),
     new Paragraph({
       alignment: AlignmentType.RIGHT, keepLines: true,
       children: [new ImageRun({ data: tamponImage, transformation: { width: SIGNATURE.tamponWidthPx, height: SIGNATURE.tamponHeightPx }, type: "png" })],

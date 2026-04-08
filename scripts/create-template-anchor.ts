@@ -42,6 +42,7 @@ async function main() {
   console.log("0. Nettoyage anciens templates...");
   await deleteTemplate(token, "038b7c11-863e-4a1f-889d-0b6982e0f7aa"); // V1
   await deleteTemplate(token, "146808bb-54cd-43ef-8638-8e49abc6f213"); // V2
+  await deleteTemplate(token, "0ce7705d-3429-492c-b864-c5fd24594940"); // V3
 
   // 1. Generate DOCX → PDF
   console.log("\n1. Génération DOCX...");
@@ -103,6 +104,8 @@ async function main() {
     { anchorString: "/cm1/", anchorXOffset: "10", anchorYOffset: "10", anchorUnits: "pixels", ...s9, ...common, tabLabel: "commentaires", value: "", required: "false", width: 480, height: 80 },
     // Page signature — ville
     { anchorString: "/vi1/", ...a0, ...s8, ...common, tabLabel: "ville", value: "Ville", required: "true", width: 122, height: 15 },
+    // Bon pour accord (15px above signature /sn1/)
+    { anchorString: "/sn1/", anchorXOffset: "0", anchorYOffset: "-15", anchorUnits: "pixels", ...s8, ...common, tabLabel: "bon_pour_accord", value: "Bon pour accord", required: "true", width: 161, height: 16 },
   ];
 
   const body = {
