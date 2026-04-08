@@ -212,6 +212,7 @@ export async function createPowerForm(
     body: JSON.stringify({
       name: `CE - ${contractCode}`,
       templateId,
+      signingMode: "email",
       signerRoles: [{ roleName: "PROPRIETAIRE", name: "", email: "" }],
     }),
   });
