@@ -44,6 +44,7 @@ async function main() {
   await deleteTemplate(token, "146808bb-54cd-43ef-8638-8e49abc6f213"); // V2
   await deleteTemplate(token, "0ce7705d-3429-492c-b864-c5fd24594940"); // V3
   await deleteTemplate(token, "f30c3907-e667-40c9-8607-3c2d3a6f637d"); // V4
+  await deleteTemplate(token, "e0ab5ef9-317c-4a32-b58f-1920de5fe548"); // V5
 
   // 1. Generate DOCX → PDF
   console.log("\n1. Génération DOCX...");
@@ -100,13 +101,15 @@ async function main() {
     // Logement page 1 — marker on its own line below
     { anchorString: "/lg1/", ...a0, ...s9, ...common, tabLabel: "adresse_logement", value: "Adresse du ou des biens exploités en LCD", required: "true", width: 563, height: 35 },
     // Logement page 2
-    { anchorString: "/lg2/", ...a0, ...s9, ...common, tabLabel: "adresse_logement_2", value: "Adresse du ou des biens exploités en LCD", required: "true", width: 563, height: 35 },
+    { anchorString: "/lg2/", anchorXOffset: "0", anchorYOffset: "5", anchorUnits: "pixels", ...s9, ...common, tabLabel: "adresse_logement_2", value: "Adresse du ou des biens exploités en LCD", required: "true", width: 520, height: 35 },
     // Article 9 — commentaires (offset into the box)
     { anchorString: "/cm1/", anchorXOffset: "10", anchorYOffset: "10", anchorUnits: "pixels", ...s9, ...common, tabLabel: "commentaires", value: "", required: "false", width: 480, height: 80 },
     // Page signature — ville
-    { anchorString: "/vi1/", ...a0, ...s8, ...common, tabLabel: "ville", value: "Ville", required: "true", width: 122, height: 15 },
+    { anchorString: "fait à", anchorXOffset: "30", anchorYOffset: "0", anchorUnits: "pixels", ...s8, ...common, tabLabel: "ville", value: "Ville", required: "true", width: 122, height: 15 },
     // Bon pour accord (15px above signature /sn1/)
-    { anchorString: "/sn1/", anchorXOffset: "0", anchorYOffset: "-30", anchorUnits: "pixels", ...s8, ...common, tabLabel: "bon_pour_accord", value: "Bon pour accord", required: "true", width: 161, height: 16 },
+    { anchorString: "/sn1/", anchorXOffset: "0", anchorYOffset: "-20", anchorUnits: "pixels", ...s8, ...common, tabLabel: "bon_pour_accord", value: "Bon pour accord", required: "true", width: 161, height: 16 },
+    // Date (textTab éditable, le signataire écrit la date)
+    { anchorString: "originaux le", anchorXOffset: "70", anchorYOffset: "0", anchorUnits: "pixels", ...s8, ...common, tabLabel: "date_signature", value: "Date", required: "true", width: 150, height: 15 },
   ];
 
   const body = {
@@ -123,12 +126,8 @@ async function main() {
         tabs: {
           textTabs,
           signHereTabs: [{
-            anchorString: "/sn1/", anchorXOffset: "0", anchorYOffset: "10", anchorUnits: "pixels",
+            anchorString: "/sn1/", anchorXOffset: "0", anchorYOffset: "35", anchorUnits: "pixels",
             scaleValue: "1.25", tabLabel: "signature_proprietaire",
-          }],
-          dateSignedTabs: [{
-            anchorString: "/dt1/", ...a0,
-            ...s8, tabLabel: "date_signature",
           }],
           initialHereTabs,
         },
@@ -191,7 +190,7 @@ async function main() {
   console.log(`Dashboard     : https://apps-d.docusign.com/templates/details/${templateId}`);
   console.log(`PowerForm ID  : ${powerFormId}`);
   console.log(`PowerForm URL : ${powerFormUrl}`);
-  console.log(`\nTabs : ${textTabs.length} text, 1 sign, 1 date, ${initialHereTabs.length} initials`);
+  console.log(`\nTabs : ${textTabs.length} text, 1 sign, ${initialHereTabs.length} initials`);
   console.log(`\n✓ Template + PowerForm V3 créés !`);
 }
 
