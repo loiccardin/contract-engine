@@ -293,37 +293,32 @@ function parseContent(content: string, articleCode: string, opts: ParseOptions):
 // ─── Special articles ───
 
 function buildCommentBox(): Paragraph[] {
+  const borderStyle = { style: BorderStyle.SINGLE, size: 4, color: "000000" };
   return [
     new Paragraph({
       spacing: { before: 200, after: 100, line: SPACING.lineBody },
       keepNext: true, keepLines: true,
       children: [new TextRun({ text: "ARTICLE 9 - COMMENTAIRES", font: FONTS.title, size: FONT_SIZES.articleTitle, bold: true })],
     }),
-    new Paragraph({
-      border: {
-        top: { style: BorderStyle.SINGLE, size: 4, color: "000000" },
-        bottom: { style: BorderStyle.SINGLE, size: 4, color: "000000" },
-        left: { style: BorderStyle.SINGLE, size: 4, color: "000000" },
-        right: { style: BorderStyle.SINGLE, size: 4, color: "000000" },
-      },
-      spacing: { after: 0 },
-      children: [anchorTab("/cm1/"), new TextRun({ text: "", font: FONTS.body, size: FONT_SIZES.body })],
-    }),
-    ...Array.from({ length: 6 }, () =>
-      new Paragraph({
-        border: { left: { style: BorderStyle.SINGLE, size: 4, color: "000000" }, right: { style: BorderStyle.SINGLE, size: 4, color: "000000" } },
-        children: [new TextRun({ text: " ", font: FONTS.body, size: FONT_SIZES.body })],
-      })
-    ),
-    new Paragraph({
-      border: {
-        bottom: { style: BorderStyle.SINGLE, size: 4, color: "000000" },
-        left: { style: BorderStyle.SINGLE, size: 4, color: "000000" },
-        right: { style: BorderStyle.SINGLE, size: 4, color: "000000" },
-      },
-      spacing: { after: SPACING.afterParagraph },
-      children: [new TextRun({ text: " ", font: FONTS.body, size: FONT_SIZES.body })],
-    }),
+    // Single table cell with border = clean single-line box, no double border issue
+    new Table({
+      width: { size: 100, type: WidthType.PERCENTAGE },
+      rows: [
+        new TableRow({
+          children: [
+            new TableCell({
+              borders: { top: borderStyle, bottom: borderStyle, left: borderStyle, right: borderStyle },
+              children: [
+                new Paragraph({ spacing: { after: 0 }, children: [anchorTab("/cm1/")] }),
+                ...Array.from({ length: 5 }, () =>
+                  new Paragraph({ spacing: { after: 0 }, children: [new TextRun({ text: " ", font: FONTS.body, size: FONT_SIZES.body })] })
+                ),
+              ],
+            }),
+          ],
+        }),
+      ],
+    }) as unknown as Paragraph,
   ];
 }
 
@@ -410,6 +405,60 @@ function buildAnnexeTable(content: string, pageBreak: boolean = false): Paragrap
   return paragraphs;
 }
 
+// ─── Dynamic numbering ───
+
+/**
+ * Apply the assembler's dynamic sectionNumber to the article content.
+ * - Finds the original number in the content (e.g., "2.2.5." for annonces)
+ * - Replaces it with the new number (e.g., "2.2.3.")
+ * - Also replaces sub-numbers (e.g., "2.2.5.1" → "2.2.3.1")
+ * - If the content starts with a PARENT section title (e.g., "2.2. Services assurés")
+ *   before the article's own number, it skips the parent and finds the right one.
+ * - If no number is found, prefixes the first line.
+ */
+function applyDynamicNumbering(content: string, sectionNumber: string): string {
+  const lines = content.split("\n");
+
+  // Find the original number: scan lines for a subsection number at the same depth
+  // sectionNumber is like "2.2.3" (3 parts) or "2.4.2" (3 parts)
+  const targetDepth = sectionNumber.split(".").length; // e.g., 3 for "2.2.3"
+
+  let originalNumber: string | null = null;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    const match = trimmed.match(/^(\d+\.\d+(\.\d+)*)\.?\s/);
+    if (match) {
+      const num = match[1];
+      const numDepth = num.split(".").length;
+      if (numDepth === targetDepth) {
+        originalNumber = num;
+        break;
+      }
+    }
+  }
+
+  if (originalNumber && originalNumber !== sectionNumber) {
+    // Replace the original number and all its sub-numbers
+    // e.g., "2.2.5" → "2.2.3", "2.2.5.1" → "2.2.3.1", "2.2.5.2" → "2.2.3.2"
+    const escaped = originalNumber.replace(/\./g, "\\.");
+    const regex = new RegExp(escaped, "g");
+    return content.replace(regex, sectionNumber);
+  }
+
+  if (!originalNumber) {
+    // No number found in content — prefix the first non-empty line
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i].trim()) {
+        lines[i] = `${sectionNumber}. ${lines[i].trim()}`;
+        return lines.join("\n");
+      }
+    }
+  }
+
+  return content;
+}
+
 // ─── ZIP post-processing ───
 
 async function injectTemplateHeaderFooter(docxBuffer: Buffer): Promise<Buffer> {
@@ -461,16 +510,7 @@ export async function generateDocx(
       // Apply dynamic section number from the assembler
       let content = article.content;
       if (article.sectionNumber) {
-        const firstLine = content.split("\n")[0] || "";
-        const trimmedFirst = firstLine.trim();
-        if (isSubsectionTitle(trimmedFirst)) {
-          // Replace existing number with the correct dynamic one
-          const replaced = trimmedFirst.replace(/^\d+\.\d+(\.\d+)*\.?\s+/, `${article.sectionNumber}. `);
-          content = content.replace(firstLine, replaced);
-        } else {
-          // Prefix with section number
-          content = content.replace(firstLine, `${article.sectionNumber}. ${trimmedFirst}`);
-        }
+        content = applyDynamicNumbering(content, article.sectionNumber);
       }
       children.push(...parseContent(content, article.code, {
         keepTogether: article.keepTogether,

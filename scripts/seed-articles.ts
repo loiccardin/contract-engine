@@ -798,7 +798,6 @@ Pendant toute la durée d'exécution du Contrat de Prestation de Services, le PR
     code: "art_3_1",
     title: "Durée et levée de la Promesse par le prestataire",
     orderIndex: 300,
-    isPageBreakBefore: true,
     scope: "common",
     contentCommon: `ARTICLE 3 - DUREE DE LA PROMESSE – SIGNATURE DU CONTRAT DÉFINITIF DE PRESTATION DE SERVICES
 
