@@ -149,57 +149,42 @@ export async function uploadDocx(
   };
 }
 
-// ─── Export DOCX → PDF via copie temporaire Google Doc ───
+// ─── Upload PDF buffer to Drive ───
 
-export async function exportAsPdf(
-  docxFileId: string,
-  pdfFolderId: string,
-  fileName: string
+export async function uploadPdf(
+  folderId: string,
+  fileName: string,
+  pdfBuffer: Buffer
 ): Promise<string> {
   const drive = initDriveClient();
 
-  // 1. Copy DOCX as Google Doc (temporary, for PDF export)
-  const copyRes = await drive.files.copy({
-    fileId: docxFileId,
+  const res = await drive.files.create({
     requestBody: {
-      name: `${fileName} (temp)`,
-      mimeType: "application/vnd.google-apps.document",
+      name: `${fileName}.pdf`,
+      mimeType: "application/pdf",
+      parents: [folderId],
     },
+    media: {
+      mimeType: "application/pdf",
+      body: Readable.from(pdfBuffer),
+    },
+    fields: "id, webViewLink",
     supportsAllDrives: true,
-    fields: "id",
   });
 
-  const tempDocId = copyRes.data.id;
-  if (!tempDocId) throw new Error(`Copie temporaire échouée pour ${fileName}`);
+  return res.data.webViewLink || `https://drive.google.com/file/d/${res.data.id}/view`;
+}
 
-  try {
-    // 2. Export Google Doc as PDF
-    const exportRes = await drive.files.export(
-      { fileId: tempDocId, mimeType: "application/pdf" },
-      { responseType: "arraybuffer" }
-    );
+// ─── Download file from Drive as Buffer ───
 
-    const pdfBuffer = Buffer.from(exportRes.data as ArrayBuffer);
+export async function downloadFile(fileId: string): Promise<Buffer> {
+  const drive = initDriveClient();
 
-    // 3. Upload PDF to the PDF folder
-    const uploadRes = await drive.files.create({
-      requestBody: {
-        name: `${fileName}.pdf`,
-        mimeType: "application/pdf",
-        parents: [pdfFolderId],
-      },
-      media: {
-        mimeType: "application/pdf",
-        body: Readable.from(pdfBuffer),
-      },
-      fields: "id, webViewLink",
-      supportsAllDrives: true,
-    });
+  const res = await drive.files.get(
+    { fileId, alt: "media", supportsAllDrives: true },
+    { responseType: "arraybuffer" }
+  );
 
-    return uploadRes.data.webViewLink || `https://drive.google.com/file/d/${uploadRes.data.id}/view`;
-  } finally {
-    // 4. Delete temporary Google Doc
-    await drive.files.delete({ fileId: tempDocId, supportsAllDrives: true }).catch(() => {});
-  }
+  return Buffer.from(res.data as ArrayBuffer);
 }
 

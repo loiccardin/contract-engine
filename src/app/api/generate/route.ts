@@ -3,11 +3,12 @@ import { prisma } from "@/lib/db";
 import { authenticate } from "@/lib/auth";
 import { assembleContract } from "@/lib/contract-assembler";
 import { generateDocx } from "@/lib/docx-generator";
+import { convertDocxToPdf } from "@/lib/pdf-converter";
 import {
   archiveCurrentFolders,
   createOutputFolders,
   uploadDocx,
-  exportAsPdf,
+  uploadPdf,
   getFileName,
 } from "@/lib/google-drive";
 import { Article, Contract } from "@/types";
@@ -28,7 +29,7 @@ export async function POST(request: NextRequest) {
     const dateStr = `${String(now.getDate()).padStart(2, "0")}/${String(now.getMonth() + 1).padStart(2, "0")}/${String(now.getFullYear()).slice(-2)}`;
     const { docsFolderId, pdfFolderId } = await createOutputFolders(dateStr);
 
-    // 3. Generate, upload, and export each contract
+    // 3. Generate, upload DOCX + convert PDF via LibreOffice + upload PDF
     const results: {
       code: string;
       status: string;
@@ -48,15 +49,18 @@ export async function POST(request: NextRequest) {
         const docxBuffer = await generateDocx(assembled, contract as unknown as Contract);
         const fileName = getFileName(contract.code);
 
-        // Upload DOCX (sans conversion)
+        // Upload DOCX natif dans Drive
         const { fileId, fileUrl: googleDocUrl } = await uploadDocx(
           docsFolderId,
           fileName,
           docxBuffer
         );
 
-        // Export DOCX → PDF via copie temporaire Google Doc
-        const pdfUrl = await exportAsPdf(fileId, pdfFolderId, fileName);
+        // Convertir en PDF via LibreOffice (pas Google Drive)
+        const pdfBuffer = await convertDocxToPdf(docxBuffer);
+
+        // Upload PDF dans Drive
+        const pdfUrl = await uploadPdf(pdfFolderId, fileName, pdfBuffer);
 
         // Update DB with DOCX file ID
         await prisma.contract.update({
