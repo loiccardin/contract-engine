@@ -6,7 +6,7 @@ import { generateDocx } from "@/lib/docx-generator";
 import {
   archiveCurrentFolders,
   createOutputFolders,
-  uploadDocxAsGoogleDoc,
+  uploadDocx,
   exportAsPdf,
   getFileName,
 } from "@/lib/google-drive";
@@ -48,20 +48,20 @@ export async function POST(request: NextRequest) {
         const docxBuffer = await generateDocx(assembled, contract as unknown as Contract);
         const fileName = getFileName(contract.code);
 
-        // Upload DOCX → Google Doc
-        const { googleDocId, googleDocUrl } = await uploadDocxAsGoogleDoc(
+        // Upload DOCX (sans conversion)
+        const { fileId, fileUrl: googleDocUrl } = await uploadDocx(
           docsFolderId,
           fileName,
           docxBuffer
         );
 
-        // Export Google Doc → PDF
-        const pdfUrl = await exportAsPdf(googleDocId, pdfFolderId, fileName);
+        // Export DOCX → PDF via copie temporaire Google Doc
+        const pdfUrl = await exportAsPdf(fileId, pdfFolderId, fileName);
 
-        // Update DB with new Google Doc ID
+        // Update DB with DOCX file ID
         await prisma.contract.update({
           where: { code: contract.code },
-          data: { googleDocId },
+          data: { googleDocId: fileId },
         });
 
         results.push({
