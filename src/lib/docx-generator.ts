@@ -220,9 +220,11 @@ function parseContent(content: string, articleCode: string, opts: ParseOptions):
       const anchors: [string, string][] = [
         ["Nom et Prénoms ou Forme et Dénomination", "/nm1/"],
         ["Nom et Prénoms", "/nm1/"],
+        ["dont le siège social est envisagé à", "/ss1/"],
+        ["Adresse du domicile ou Siège social", "/ad1/"],
         ["Adresse du domicile", "/ad1/"],
-        ["Siège social", "/ad1/"],
         ["Date de naissance", "/dn1/"],
+        ["Pays", "/py1/"],
         ["Téléphone", "/tl1/"],
         ["Mail", "/ml1/"],
         ["Adresse du/des LOGEMENT", "/lg1/"],
@@ -267,6 +269,22 @@ function parseContent(content: string, articleCode: string, opts: ParseOptions):
         }
       }
       if (found) continue;
+    }
+
+    // Anchor /lg2/ on "Adresse et description précise du/des LOGEMENT(s)" in preambule
+    if (articleCode === "preambule" && trimmed.startsWith("Adresse et description précise")) {
+      paragraphs.push(
+        new Paragraph({
+          alignment: AlignmentType.JUSTIFIED,
+          spacing: { after: SPACING.afterParagraph, line: lineSpacing },
+          keepLines: opts.keepTogether,
+          children: [
+            new TextRun({ text: trimmed + " ", font: FONTS.body, size: FONT_SIZES.body }),
+            anchorTab("/lg2/"),
+          ],
+        })
+      );
+      continue;
     }
 
     // Bold structural lines
