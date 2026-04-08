@@ -3,12 +3,10 @@ import { prisma } from "@/lib/db";
 import { authenticate } from "@/lib/auth";
 import { assembleContract } from "@/lib/contract-assembler";
 import { generateDocx } from "@/lib/docx-generator";
-import { convertDocxToPdf } from "@/lib/pdf-converter";
 import {
   archiveCurrentFolders,
   createOutputFolders,
   uploadDocx,
-  uploadPdf,
   getFileName,
 } from "@/lib/google-drive";
 import { Article, Contract } from "@/types";
@@ -24,17 +22,16 @@ export async function POST(request: NextRequest) {
     // 1. Archive existing "(en cours)" folders
     const archived = await archiveCurrentFolders();
 
-    // 2. Create new output folders with today's date
+    // 2. Create new output folder with today's date (DOCX only, no PDF folder)
     const now = new Date();
     const dateStr = `${String(now.getDate()).padStart(2, "0")}/${String(now.getMonth() + 1).padStart(2, "0")}/${String(now.getFullYear()).slice(-2)}`;
-    const { docsFolderId, pdfFolderId } = await createOutputFolders(dateStr);
+    const { docsFolderId } = await createOutputFolders(dateStr);
 
-    // 3. Generate, upload DOCX + convert PDF via LibreOffice + upload PDF
+    // 3. Generate + upload each DOCX
     const results: {
       code: string;
       status: string;
       googleDocUrl?: string;
-      pdfUrl?: string;
       articleCount?: number;
     }[] = [];
     const errors: { code: string; error: string }[] = [];
@@ -56,12 +53,6 @@ export async function POST(request: NextRequest) {
           docxBuffer
         );
 
-        // Convertir en PDF via LibreOffice (pas Google Drive)
-        const pdfBuffer = await convertDocxToPdf(docxBuffer);
-
-        // Upload PDF dans Drive
-        const pdfUrl = await uploadPdf(pdfFolderId, fileName, pdfBuffer);
-
         // Update DB with DOCX file ID
         await prisma.contract.update({
           where: { code: contract.code },
@@ -72,7 +63,6 @@ export async function POST(request: NextRequest) {
           code: contract.code,
           status: "ok",
           googleDocUrl,
-          pdfUrl,
           articleCount: assembled.length,
         });
       } catch (err) {
@@ -89,7 +79,6 @@ export async function POST(request: NextRequest) {
         generatedAt: now.toISOString(),
         archived,
         docsFolderId,
-        pdfFolderId,
         contracts: results,
         errors,
       },
