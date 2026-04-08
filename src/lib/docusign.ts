@@ -107,25 +107,25 @@ export async function createTemplateWithDocument(
 
   const documentBase64 = pdfOrDocxBuffer.toString("base64");
 
-  // Text tabs — v3: with placeholder values, corrected positions
+  // Text tabs — v4: tooltip (placeholder grisé), pas value (pré-rempli)
   const textTabs: Record<string, unknown>[] = [
-    { anchorString: "/nm1/", anchorXOffset: "0", anchorYOffset: "0", anchorUnits: "pixels", tabLabel: "nom_complet", required: "true", width: 300, height: 15, value: "Nom et Prénoms" },
-    { anchorString: "est envisagé à :", anchorXOffset: "5", anchorYOffset: "-2", anchorUnits: "pixels", tabLabel: "siege_social", required: "true", width: 300, height: 15, value: "Adresse postale complète du siège social envisagée" },
-    { anchorString: "/dn1/", anchorXOffset: "0", anchorYOffset: "0", anchorUnits: "pixels", tabLabel: "date_naissance", required: "true", width: 150, height: 15, value: "JJ/MM/AAAA" },
-    { anchorString: "/ad1/", anchorXOffset: "0", anchorYOffset: "0", anchorUnits: "pixels", tabLabel: "adresse", required: "true", width: 350, height: 15, value: "Adresse postale complète personnelle" },
-    { anchorString: "Pays :", anchorXOffset: "30", anchorYOffset: "-2", anchorUnits: "pixels", tabLabel: "pays", required: "true", width: 200, height: 15, value: "France / autre" },
-    { anchorString: "/tl1/", anchorXOffset: "0", anchorYOffset: "0", anchorUnits: "pixels", tabLabel: "telephone", required: "true", width: 200, height: 15, value: "Numéro de téléphone" },
-    { anchorString: "/ml1/", anchorXOffset: "0", anchorYOffset: "0", anchorUnits: "pixels", tabLabel: "email", required: "true", width: 250, height: 15, value: "adresse mail" },
-    { anchorString: "/lg1/", anchorXOffset: "0", anchorYOffset: "15", anchorUnits: "pixels", tabLabel: "adresse_logement", required: "true", width: 450, height: 60, value: "Adresse du ou des biens exploités en LCD" },
-    { anchorString: "/vi1/", anchorXOffset: "0", anchorYOffset: "0", anchorUnits: "pixels", tabLabel: "ville", required: "true", width: 150, height: 15, value: "Ville" },
-    { anchorString: "/cm1/", anchorXOffset: "0", anchorYOffset: "0", anchorUnits: "pixels", tabLabel: "commentaires", required: "false", width: 330, height: 55, value: "" },
+    { anchorString: "/nm1/", anchorXOffset: "0", anchorYOffset: "0", anchorUnits: "pixels", tabLabel: "nom_complet", tooltip: "Nom et Prénoms", value: "", required: "true", width: 300, height: 15 },
+    { anchorString: "envisagé à :", anchorXOffset: "5", anchorYOffset: "-2", anchorUnits: "pixels", tabLabel: "siege_social", tooltip: "Adresse postale complète du siège social", value: "", required: "true", width: 300, height: 15 },
+    { anchorString: "/dn1/", anchorXOffset: "0", anchorYOffset: "0", anchorUnits: "pixels", tabLabel: "date_naissance", tooltip: "JJ/MM/AAAA", value: "", required: "true", width: 150, height: 15 },
+    { anchorString: "/ad1/", anchorXOffset: "0", anchorYOffset: "0", anchorUnits: "pixels", tabLabel: "adresse", tooltip: "Adresse postale complète", value: "", required: "true", width: 350, height: 15 },
+    { anchorString: "Pays :", anchorXOffset: "30", anchorYOffset: "-2", anchorUnits: "pixels", tabLabel: "pays", tooltip: "France / autre", value: "", required: "true", width: 200, height: 15 },
+    { anchorString: "/tl1/", anchorXOffset: "0", anchorYOffset: "0", anchorUnits: "pixels", tabLabel: "telephone", tooltip: "Numéro de téléphone", value: "", required: "true", width: 200, height: 15 },
+    { anchorString: "/ml1/", anchorXOffset: "0", anchorYOffset: "0", anchorUnits: "pixels", tabLabel: "email", tooltip: "Adresse email", value: "", required: "true", width: 250, height: 15 },
+    { anchorString: "/lg1/", anchorXOffset: "0", anchorYOffset: "15", anchorUnits: "pixels", tabLabel: "adresse_logement", tooltip: "Adresse du ou des biens exploités en LCD", value: "", required: "true", width: 450, height: 60 },
+    { anchorString: "/vi1/", anchorXOffset: "0", anchorYOffset: "0", anchorUnits: "pixels", tabLabel: "ville", tooltip: "Ville", value: "", required: "true", width: 150, height: 15 },
+    { anchorString: "/cm1/", anchorXOffset: "0", anchorYOffset: "0", anchorUnits: "pixels", tabLabel: "commentaires", tooltip: "Commentaires éventuels", value: "", required: "false", width: 330, height: 55 },
   ];
 
   // Add SIREN tab for société variants (.S)
   if (contractCode.includes(".S")) {
     textTabs.push({
       anchorString: "/sr1/", anchorXOffset: "0", anchorYOffset: "0", anchorUnits: "pixels",
-      tabLabel: "siren", required: "true", width: 150, height: 15, value: "Numéro SIREN",
+      tabLabel: "siren", tooltip: "Numéro SIREN", value: "", required: "true", width: 150, height: 15,
     });
   }
 
@@ -147,13 +147,7 @@ export async function createTemplateWithDocument(
           initialHereTabs: [{ anchorString: "/ini1/", anchorXOffset: "0", anchorYOffset: "0", anchorUnits: "pixels" }],
         },
       }],
-      carbonCopies: [{
-        roleName: "LETAHOST",
-        recipientId: "2",
-        routingOrder: "2",
-        email: "direction@conciergerie-letahost.com",
-        name: "LETAHOST LLC",
-      }],
+      // Pas de carbonCopies — LETAHOST recevra sa copie via les paramètres du compte
     },
     status: "created",
   };
