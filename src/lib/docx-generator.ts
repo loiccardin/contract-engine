@@ -34,7 +34,7 @@ function loadImage(filename: string): Buffer {
   return loadFile(`public/images/${filename}`);
 }
 
-// ─── Anchor tab helper (invisible white 1pt text) ───
+// ─── Anchor tab helper (invisible white 1pt) ───
 
 function anchorTab(tag: string): TextRun {
   return new TextRun({
@@ -42,6 +42,15 @@ function anchorTab(tag: string): TextRun {
     font: FONTS.body,
     size: FONT_SIZES.anchorTab,
     color: "FFFFFF",
+  });
+}
+
+// ─── Empty paragraph ───
+
+function emptyParagraph(line: number = SPACING.lineBody): Paragraph {
+  return new Paragraph({
+    spacing: { after: 0, line },
+    children: [new TextRun({ text: "", font: FONTS.body, size: FONT_SIZES.body })],
   });
 }
 
@@ -65,26 +74,80 @@ function parseBulletText(line: string): string {
   return line.replace(/^[\s]*[*\-—·⁠]\s*/, "").trim();
 }
 
+// ─── Italic detection for "la Partie" / "les Parties" ───
+
+function renderLineWithItalics(text: string, fontSize: number, bold: boolean, underline: boolean): TextRun[] {
+  // Detect "la Partie" and "les Parties" for italic rendering
+  const italicPattern = /(la Partie|les Parties)/g;
+  const runs: TextRun[] = [];
+  let lastIndex = 0;
+  let match;
+
+  while ((match = italicPattern.exec(text)) !== null) {
+    // Text before the match
+    if (match.index > lastIndex) {
+      runs.push(new TextRun({
+        text: text.slice(lastIndex, match.index),
+        font: FONTS.body, size: fontSize, bold,
+        underline: underline ? {} : undefined,
+      }));
+    }
+    // The italic part
+    runs.push(new TextRun({
+      text: match[1],
+      font: FONTS.body, size: fontSize, bold, italics: true,
+      underline: underline ? {} : undefined,
+    }));
+    lastIndex = match.index + match[0].length;
+  }
+
+  // Remaining text
+  if (lastIndex < text.length) {
+    runs.push(new TextRun({
+      text: text.slice(lastIndex),
+      font: FONTS.body, size: fontSize, bold,
+      underline: underline ? {} : undefined,
+    }));
+  }
+
+  if (runs.length === 0) {
+    runs.push(new TextRun({
+      text, font: FONTS.body, size: fontSize, bold,
+      underline: underline ? {} : undefined,
+    }));
+  }
+
+  return runs;
+}
+
 // ─── Parse content into paragraphs ───
 
 interface ParseOptions {
-  keepTogether: boolean;  // keepLines on all paragraphs
+  keepTogether: boolean;
+  isOwnerFields?: boolean;  // en_tete_proprietaire fields → line spacing 1.5
 }
 
 function parseContent(content: string, articleCode: string, opts: ParseOptions): Paragraph[] {
   const paragraphs: Paragraph[] = [];
   const lines = content.split("\n");
+  const isOwner = articleCode === "en_tete_proprietaire";
+  const lineSpacing = (opts.isOwnerFields || isOwner) ? SPACING.lineFieldsOwner : SPACING.lineBody;
 
   for (let i = 0; i < lines.length; i++) {
     const trimmed = lines[i].trim();
-    if (!trimmed) continue;
 
-    // ARTICLE headers — keepNext + keepLines (never orphan at bottom of page)
+    // Empty lines → render as empty paragraph (preserve spacing from model)
+    if (!trimmed) {
+      paragraphs.push(emptyParagraph(lineSpacing));
+      continue;
+    }
+
+    // ARTICLE headers — keepNext + keepLines, no extra spacing
     if (isArticleHeader(trimmed)) {
       paragraphs.push(
         new Paragraph({
           alignment: AlignmentType.JUSTIFIED,
-          spacing: { before: SPACING.afterTitle, after: SPACING.afterTitle, line: SPACING.line },
+          spacing: { before: SPACING.afterTitle, after: SPACING.afterTitle, line: lineSpacing },
           keepNext: true,
           keepLines: true,
           children: [new TextRun({ text: trimmed, font: FONTS.title, size: FONT_SIZES.articleTitle, bold: true })],
@@ -93,12 +156,12 @@ function parseContent(content: string, articleCode: string, opts: ParseOptions):
       continue;
     }
 
-    // Subsection titles — keepNext + keepLines
+    // Subsection titles — keepNext + keepLines, no extra spacing
     if (isSubsectionTitle(trimmed)) {
       paragraphs.push(
         new Paragraph({
           alignment: AlignmentType.JUSTIFIED,
-          spacing: { before: SPACING.afterParagraph, after: SPACING.afterParagraph, line: SPACING.line },
+          spacing: { before: SPACING.afterTitle, after: SPACING.afterTitle, line: lineSpacing },
           keepNext: true,
           keepLines: true,
           children: [new TextRun({ text: trimmed, font: FONTS.title, size: FONT_SIZES.articleTitle, bold: true })],
@@ -107,25 +170,26 @@ function parseContent(content: string, articleCode: string, opts: ParseOptions):
       continue;
     }
 
-    // Bullet lines
+    // Bullet lines → tiret long + hanging indent
     if (isBulletLine(trimmed)) {
+      const bulletText = parseBulletText(trimmed);
       paragraphs.push(
         new Paragraph({
           alignment: AlignmentType.JUSTIFIED,
-          spacing: { after: 60, line: SPACING.line },
-          indent: { left: 360 },
+          spacing: { after: SPACING.afterBullet, line: lineSpacing },
+          indent: { left: 720, hanging: 360 },
           keepLines: opts.keepTogether,
           children: [
-            new TextRun({ text: "•  ", font: FONTS.body, size: FONT_SIZES.body }),
-            new TextRun({ text: parseBulletText(trimmed), font: FONTS.body, size: FONT_SIZES.body }),
+            new TextRun({ text: "-            ", font: FONTS.body, size: FONT_SIZES.body }),
+            new TextRun({ text: bulletText, font: FONTS.body, size: FONT_SIZES.body }),
           ],
         })
       );
       continue;
     }
 
-    // Anchor tabs in en_tete_proprietaire — text stays 10pt, only the tag is 1pt white
-    if (articleCode === "en_tete_proprietaire") {
+    // Anchor tabs in en_tete_proprietaire — 2 runs: text 10pt + tag 1pt white
+    if (isOwner) {
       const anchors: [string, string][] = [
         ["Nom et Prénoms ou Forme et Dénomination", "/nm1/"],
         ["Nom et Prénoms", "/nm1/"],
@@ -135,6 +199,8 @@ function parseContent(content: string, articleCode: string, opts: ParseOptions):
         ["Téléphone", "/tl1/"],
         ["Mail", "/ml1/"],
         ["Adresse du/des LOGEMENT", "/lg1/"],
+        ["Numéro SIREN", "/ad1/"],
+        ["Représentée par", "/nm1/"],
       ];
       let found = false;
       for (const [prefix, tag] of anchors) {
@@ -142,7 +208,7 @@ function parseContent(content: string, articleCode: string, opts: ParseOptions):
           paragraphs.push(
             new Paragraph({
               alignment: AlignmentType.JUSTIFIED,
-              spacing: { after: SPACING.afterParagraph, line: SPACING.line },
+              spacing: { after: 0, line: SPACING.lineFieldsOwner },
               keepLines: opts.keepTogether,
               children: [
                 new TextRun({ text: trimmed + " ", font: FONTS.body, size: FONT_SIZES.body }),
@@ -164,6 +230,10 @@ function parseContent(content: string, articleCode: string, opts: ParseOptions):
       trimmed === "D'UNE PART" || trimmed === "D'AUTRE PART" ||
       trimmed.startsWith("IL EST PRÉALABLEMENT RAPPELÉ") || trimmed.startsWith("CECI EXPOSÉ");
 
+    const isUnderlined =
+      trimmed === "ENTRE LES SOUSSIGNÉS" || trimmed === "ET" ||
+      trimmed.startsWith("IL EST PRÉALABLEMENT RAPPELÉ") || trimmed.startsWith("CECI EXPOSÉ");
+
     // Title lines
     const isBigTitle = trimmed === "PROMESSE DE CONTRAT" || trimmed === "DE PRESTATION DE SERVICES";
     const isSmallCentered = trimmed.startsWith("CONCIERGERIE");
@@ -171,24 +241,40 @@ function parseContent(content: string, articleCode: string, opts: ParseOptions):
 
     let fontSize: number = FONT_SIZES.body;
     if (isBigTitle) fontSize = FONT_SIZES.docTitle;
-    // CONCIERGERIE = 10pt bold centered (not 20pt)
 
-    paragraphs.push(
-      new Paragraph({
-        alignment: isCentered ? AlignmentType.CENTER : AlignmentType.JUSTIFIED,
-        spacing: { after: SPACING.afterParagraph, line: SPACING.line },
-        keepLines: opts.keepTogether,
-        children: [
-          new TextRun({
-            text: trimmed,
-            font: FONTS.body,
-            size: fontSize,
-            bold: isBoldLine || isCentered,
-            underline: (trimmed.startsWith("ENTRE LES SOUSSIGNÉS") || trimmed.startsWith("IL EST PRÉALABLEMENT") || trimmed.startsWith("CECI EXPOSÉ")) ? {} : undefined,
-          }),
-        ],
-      })
-    );
+    const bold = isBoldLine || isCentered;
+    const alignment = isCentered ? AlignmentType.CENTER : AlignmentType.JUSTIFIED;
+
+    // Use italic-aware rendering for lines containing "la Partie" / "les Parties"
+    const hasItalic = trimmed.includes("la Partie") || trimmed.includes("les Parties");
+
+    if (hasItalic) {
+      paragraphs.push(
+        new Paragraph({
+          alignment,
+          spacing: { after: SPACING.afterParagraph, line: lineSpacing },
+          keepLines: opts.keepTogether,
+          children: renderLineWithItalics(trimmed, fontSize, bold, isUnderlined),
+        })
+      );
+    } else {
+      paragraphs.push(
+        new Paragraph({
+          alignment,
+          spacing: { after: SPACING.afterParagraph, line: lineSpacing },
+          keepLines: opts.keepTogether,
+          children: [
+            new TextRun({
+              text: trimmed,
+              font: FONTS.body,
+              size: fontSize,
+              bold,
+              underline: isUnderlined ? {} : undefined,
+            }),
+          ],
+        })
+      );
+    }
   }
 
   return paragraphs;
@@ -199,7 +285,7 @@ function parseContent(content: string, articleCode: string, opts: ParseOptions):
 function buildCommentBox(): Paragraph[] {
   return [
     new Paragraph({
-      spacing: { before: SPACING.afterTitle, after: SPACING.afterParagraph, line: SPACING.line },
+      spacing: { before: 200, after: 100, line: SPACING.lineBody },
       keepNext: true,
       keepLines: true,
       children: [new TextRun({ text: "ARTICLE 9 - COMMENTAIRES", font: FONTS.title, size: FONT_SIZES.articleTitle, bold: true })],
@@ -233,27 +319,14 @@ function buildCommentBox(): Paragraph[] {
 }
 
 function buildSignatureBlock(content: string, tamponImage: Buffer): Paragraph[] {
-  // All paragraphs in signature block: keepLines + keepNext (stay on one page)
   const paras = parseContent(content, "bloc_signature", { keepTogether: true });
-
-  // Apply keepNext to all parsed paragraphs
   for (const p of paras) {
     (p as unknown as { keepNext: boolean }).keepNext = true;
   }
 
   paras.push(
-    new Paragraph({
-      spacing: { before: 200 },
-      keepNext: true,
-      keepLines: true,
-      children: [anchorTab("/vi1/"), anchorTab("/dt1/")],
-    }),
-    new Paragraph({
-      spacing: { before: 400 },
-      keepNext: true,
-      keepLines: true,
-      children: [anchorTab("/sn1/")],
-    }),
+    new Paragraph({ spacing: { before: 200 }, keepNext: true, keepLines: true, children: [anchorTab("/vi1/"), anchorTab("/dt1/")] }),
+    new Paragraph({ spacing: { before: 400 }, keepNext: true, keepLines: true, children: [anchorTab("/sn1/")] }),
     new Paragraph({
       alignment: AlignmentType.RIGHT,
       keepLines: true,
@@ -269,9 +342,8 @@ function buildAnnexeTable(content: string): Paragraph[] {
   paragraphs.push(
     new Paragraph({
       alignment: AlignmentType.CENTER,
-      spacing: { before: SPACING.afterTitle, after: SPACING.afterTitle },
-      keepNext: true,
-      keepLines: true,
+      spacing: { before: 200, after: 200 },
+      keepNext: true, keepLines: true,
       children: [new TextRun({ text: "ANNEXE 2 - GRILLE ESTIMATIVE MÉNAGE", font: FONTS.title, size: FONT_SIZES.articleTitle, bold: true, underline: {} })],
     })
   );
@@ -362,12 +434,6 @@ export async function generateDocx(
       article.code === "annexe_1" ||
       article.code === "annexe_2";
 
-    // Page break before (via paragraph property, not PageBreak child)
-    if (needsPageBreak && children.length > 0) {
-      // Insert a pageBreakBefore on the first paragraph of this article
-      // We'll handle it by wrapping
-    }
-
     if (article.code === "art_9") {
       const box = buildCommentBox();
       if (needsPageBreak && box.length > 0) {
@@ -397,15 +463,10 @@ export async function generateDocx(
 
     const paras = parseContent(article.content, article.code, {
       keepTogether: article.keepTogether,
+      isOwnerFields: article.code === "en_tete_proprietaire",
     });
 
-    // Apply page break to first paragraph if needed
     if (needsPageBreak && paras.length > 0) {
-      (paras[0] as unknown as { pageBreakBefore: boolean }).pageBreakBefore = true;
-    }
-
-    // For annexe_1, also add pageBreakBefore
-    if (article.code === "annexe_1" && paras.length > 0) {
       (paras[0] as unknown as { pageBreakBefore: boolean }).pageBreakBefore = true;
     }
 
