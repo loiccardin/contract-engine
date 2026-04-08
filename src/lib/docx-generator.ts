@@ -206,7 +206,7 @@ function parseContent(content: string, articleCode: string, opts: ParseOptions):
           pageBreakBefore: needsPageBreakOnNext || undefined,
           keepLines: opts.keepTogether,
           children: [
-            new TextRun({ text: "-            ", font: FONTS.body, size: FONT_SIZES.body }),
+            new TextRun({ text: "•   ", font: FONTS.body, size: FONT_SIZES.body }),
             new TextRun({ text: parseBulletText(trimmed), font: FONTS.body, size: FONT_SIZES.body }),
           ],
         })
@@ -301,25 +301,25 @@ function buildCommentBox(): Paragraph[] {
     }),
     new Paragraph({
       border: {
-        top: { style: BorderStyle.SINGLE, size: 6, color: "000000" },
-        bottom: { style: BorderStyle.SINGLE, size: 6, color: "000000" },
-        left: { style: BorderStyle.SINGLE, size: 6, color: "000000" },
-        right: { style: BorderStyle.SINGLE, size: 6, color: "000000" },
+        top: { style: BorderStyle.SINGLE, size: 4, color: "000000" },
+        bottom: { style: BorderStyle.SINGLE, size: 4, color: "000000" },
+        left: { style: BorderStyle.SINGLE, size: 4, color: "000000" },
+        right: { style: BorderStyle.SINGLE, size: 4, color: "000000" },
       },
       spacing: { after: 0 },
       children: [anchorTab("/cm1/"), new TextRun({ text: "", font: FONTS.body, size: FONT_SIZES.body })],
     }),
     ...Array.from({ length: 6 }, () =>
       new Paragraph({
-        border: { left: { style: BorderStyle.SINGLE, size: 6, color: "000000" }, right: { style: BorderStyle.SINGLE, size: 6, color: "000000" } },
+        border: { left: { style: BorderStyle.SINGLE, size: 4, color: "000000" }, right: { style: BorderStyle.SINGLE, size: 4, color: "000000" } },
         children: [new TextRun({ text: " ", font: FONTS.body, size: FONT_SIZES.body })],
       })
     ),
     new Paragraph({
       border: {
-        bottom: { style: BorderStyle.SINGLE, size: 6, color: "000000" },
-        left: { style: BorderStyle.SINGLE, size: 6, color: "000000" },
-        right: { style: BorderStyle.SINGLE, size: 6, color: "000000" },
+        bottom: { style: BorderStyle.SINGLE, size: 4, color: "000000" },
+        left: { style: BorderStyle.SINGLE, size: 4, color: "000000" },
+        right: { style: BorderStyle.SINGLE, size: 4, color: "000000" },
       },
       spacing: { after: SPACING.afterParagraph },
       children: [new TextRun({ text: " ", font: FONTS.body, size: FONT_SIZES.body })],
@@ -458,7 +458,21 @@ export async function generateDocx(
     } else if (article.code === "annexe_2") {
       children.push(...buildAnnexeTable(article.content, needsPageBreak));
     } else {
-      children.push(...parseContent(article.content, article.code, {
+      // Apply dynamic section number from the assembler
+      let content = article.content;
+      if (article.sectionNumber) {
+        const firstLine = content.split("\n")[0] || "";
+        const trimmedFirst = firstLine.trim();
+        if (isSubsectionTitle(trimmedFirst)) {
+          // Replace existing number with the correct dynamic one
+          const replaced = trimmedFirst.replace(/^\d+\.\d+(\.\d+)*\.?\s+/, `${article.sectionNumber}. `);
+          content = content.replace(firstLine, replaced);
+        } else {
+          // Prefix with section number
+          content = content.replace(firstLine, `${article.sectionNumber}. ${trimmedFirst}`);
+        }
+      }
+      children.push(...parseContent(content, article.code, {
         keepTogether: article.keepTogether,
         isOwnerFields: article.code === "en_tete_proprietaire",
         pageBreakBefore: needsPageBreak && children.length > 0,
