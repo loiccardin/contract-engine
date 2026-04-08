@@ -139,6 +139,18 @@ export default function EditorPage() {
             />
           ))}
         </div>
+
+        {articles.length > 0 && (
+          <div className="mt-8 pt-6 border-t border-gray-200 flex justify-end">
+            <a href="/generate"
+              className="inline-flex items-center gap-2 px-6 py-3 bg-gray-900 text-white font-medium rounded-lg hover:bg-gray-800 transition-colors">
+              Passer à la génération
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </a>
+          </div>
+        )}
       </main>
     </div>
   );
