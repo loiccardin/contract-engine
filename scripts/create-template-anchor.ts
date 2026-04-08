@@ -45,6 +45,7 @@ async function main() {
   await deleteTemplate(token, "0ce7705d-3429-492c-b864-c5fd24594940"); // V3
   await deleteTemplate(token, "f30c3907-e667-40c9-8607-3c2d3a6f637d"); // V4
   await deleteTemplate(token, "e0ab5ef9-317c-4a32-b58f-1920de5fe548"); // V5
+  await deleteTemplate(token, "84df7c6b-98db-4df9-bb49-3b894776da38"); // V6
 
   // 1. Generate DOCX → PDF
   console.log("\n1. Génération DOCX...");
@@ -107,7 +108,7 @@ async function main() {
     // Page signature — ville
     { anchorString: "fait à", anchorXOffset: "30", anchorYOffset: "0", anchorUnits: "pixels", ...s8, ...common, tabLabel: "ville", value: "Ville", required: "true", width: 122, height: 15 },
     // Bon pour accord (15px above signature /sn1/)
-    { anchorString: "/sn1/", anchorXOffset: "0", anchorYOffset: "-20", anchorUnits: "pixels", ...s8, ...common, tabLabel: "bon_pour_accord", value: "Bon pour accord", required: "true", width: 161, height: 16 },
+    { anchorString: "/sn1/", anchorXOffset: "0", anchorYOffset: "0", anchorUnits: "pixels", ...s8, ...common, tabLabel: "bon_pour_accord", value: "Bon pour accord", required: "true", width: 161, height: 16 },
     // Date (textTab éditable, le signataire écrit la date)
     { anchorString: "originaux le", anchorXOffset: "70", anchorYOffset: "0", anchorUnits: "pixels", ...s8, ...common, tabLabel: "date_signature", value: "Date", required: "true", width: 150, height: 15 },
   ];
@@ -126,7 +127,7 @@ async function main() {
         tabs: {
           textTabs,
           signHereTabs: [{
-            anchorString: "/sn1/", anchorXOffset: "0", anchorYOffset: "35", anchorUnits: "pixels",
+            anchorString: "/sn1/", anchorXOffset: "0", anchorYOffset: "65", anchorUnits: "pixels",
             scaleValue: "1.25", tabLabel: "signature_proprietaire",
           }],
           initialHereTabs,
