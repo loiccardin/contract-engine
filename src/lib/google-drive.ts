@@ -55,6 +55,8 @@ export async function archiveCurrentFolders(): Promise<string[]> {
   const res = await drive.files.list({
     q: `'${rootId}' in parents and mimeType = 'application/vnd.google-apps.folder' and name contains '(en cours)' and trashed = false`,
     fields: "files(id, name)",
+    supportsAllDrives: true,
+    includeItemsFromAllDrives: true,
   });
 
   const archived: string[] = [];
@@ -71,6 +73,7 @@ export async function archiveCurrentFolders(): Promise<string[]> {
       addParents: archiveId,
       removeParents: rootId,
       requestBody: { name: newName },
+      supportsAllDrives: true,
     });
 
     archived.push(newName);
@@ -93,6 +96,7 @@ export async function createOutputFolders(dateStr: string): Promise<{ docsFolder
       parents: [rootId],
     },
     fields: "id",
+    supportsAllDrives: true,
   });
 
   const pdfFolder = await drive.files.create({
@@ -102,6 +106,7 @@ export async function createOutputFolders(dateStr: string): Promise<{ docsFolder
       parents: [rootId],
     },
     fields: "id",
+    supportsAllDrives: true,
   });
 
   if (!docsFolder.data.id || !pdfFolder.data.id) {
@@ -134,6 +139,7 @@ export async function uploadDocxAsGoogleDoc(
       body: Readable.from(docxBuffer),
     },
     fields: "id, webViewLink",
+    supportsAllDrives: true,
   });
 
   if (!res.data.id) throw new Error(`Upload échoué pour ${fileName}`);
@@ -173,6 +179,7 @@ export async function exportAsPdf(
       body: Readable.from(pdfBuffer),
     },
     fields: "id, webViewLink",
+    supportsAllDrives: true,
   });
 
   return uploadRes.data.webViewLink || `https://drive.google.com/file/d/${uploadRes.data.id}/view`;
