@@ -312,24 +312,31 @@ function parseContent(content: string, articleCode: string, opts: ParseOptions):
 // ─── Special articles ───
 
 function buildCommentBox(): Paragraph[] {
+  // Page text width = PAGE.width - left margin - right margin = 11909 - 1440 - 1440 = 9029 twips
+  const textWidth = 9029;
   const borderStyle = { style: BorderStyle.SINGLE, size: 4, color: "000000" };
+  const noBorder = { style: BorderStyle.NONE, size: 0, color: "FFFFFF" };
   return [
     new Paragraph({
       spacing: { before: 200, after: 100, line: SPACING.lineBody },
       keepNext: true, keepLines: true,
       children: [new TextRun({ text: "ARTICLE 9 - COMMENTAIRES", font: FONTS.title, size: FONT_SIZES.articleTitle, bold: true })],
     }),
-    // Single table cell with border = clean single-line box, no double border issue
     new Table({
-      width: { size: 100, type: WidthType.PERCENTAGE },
+      width: { size: textWidth, type: WidthType.DXA },
+      borders: {
+        top: borderStyle, bottom: borderStyle, left: borderStyle, right: borderStyle,
+        insideHorizontal: noBorder, insideVertical: noBorder,
+      },
       rows: [
         new TableRow({
+          height: { value: 2268, rule: "atLeast" }, // ~4cm min height
           children: [
             new TableCell({
-              borders: { top: borderStyle, bottom: borderStyle, left: borderStyle, right: borderStyle },
+              width: { size: textWidth, type: WidthType.DXA },
               children: [
                 new Paragraph({ spacing: { after: 0 }, children: [anchorTab("/cm1/")] }),
-                ...Array.from({ length: 5 }, () =>
+                ...Array.from({ length: 4 }, () =>
                   new Paragraph({ spacing: { after: 0 }, children: [new TextRun({ text: " ", font: FONTS.body, size: FONT_SIZES.body })] })
                 ),
               ],
@@ -362,6 +369,11 @@ function buildSignatureBlock(content: string, tamponImage: Buffer, pageBreak: bo
 
 function buildAnnexeTable(content: string, pageBreak: boolean = false): Paragraph[] {
   const paragraphs: Paragraph[] = [];
+  // Column widths to fill text area: 2800 + 2400 + 3829 = 9029 twips
+  const col1 = 2800;
+  const col2 = 2400;
+  const col3 = 3829;
+  const tableWidth = col1 + col2 + col3;
 
   paragraphs.push(
     new Paragraph({
@@ -376,16 +388,30 @@ function buildAnnexeTable(content: string, pageBreak: boolean = false): Paragrap
   const lines = content.split("\n").filter((l) => l.trim());
   const tableRows: TableRow[] = [];
 
+  // Header row — black background, white bold text, centered
   tableRows.push(
     new TableRow({
       children: [
-        new TableCell({ width: { size: 3000, type: WidthType.DXA }, shading: { type: ShadingType.SOLID, color: "000000" }, children: [new Paragraph({ children: [new TextRun({ text: "TYPOLOGIE", font: FONTS.body, size: 18, bold: true, color: "FFFFFF" })] })] }),
-        new TableCell({ width: { size: 2000, type: WidthType.DXA }, shading: { type: ShadingType.SOLID, color: "000000" }, children: [new Paragraph({ children: [new TextRun({ text: "SUPERFICIE", font: FONTS.body, size: 18, bold: true, color: "FFFFFF" })] })] }),
-        new TableCell({ width: { size: 4000, type: WidthType.DXA }, shading: { type: ShadingType.SOLID, color: "000000" }, children: [new Paragraph({ children: [new TextRun({ text: "FORFAIT [Ménage+Linge+Consommables]", font: FONTS.body, size: 18, bold: true, color: "FFFFFF" })] })] }),
+        new TableCell({
+          width: { size: col1, type: WidthType.DXA },
+          shading: { type: ShadingType.SOLID, color: "000000" },
+          children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "TYPOLOGIE", font: FONTS.body, size: FONT_SIZES.body, bold: true, color: "FFFFFF" })] })],
+        }),
+        new TableCell({
+          width: { size: col2, type: WidthType.DXA },
+          shading: { type: ShadingType.SOLID, color: "000000" },
+          children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "SUPERFICIE", font: FONTS.body, size: FONT_SIZES.body, bold: true, color: "FFFFFF" })] })],
+        }),
+        new TableCell({
+          width: { size: col3, type: WidthType.DXA },
+          shading: { type: ShadingType.SOLID, color: "000000" },
+          children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "FORFAIT [Ménage+Linge+Consommables]", font: FONTS.body, size: FONT_SIZES.body, bold: true, color: "FFFFFF" })] })],
+        }),
       ],
     })
   );
 
+  // Parse data rows
   let currentType = "";
   let currentSize = "";
   for (const line of lines) {
@@ -404,9 +430,9 @@ function buildAnnexeTable(content: string, pageBreak: boolean = false): Paragrap
       tableRows.push(
         new TableRow({
           children: [
-            new TableCell({ width: { size: 3000, type: WidthType.DXA }, children: [new Paragraph({ children: [new TextRun({ text: currentType, font: FONTS.body, size: 18 })] })] }),
-            new TableCell({ width: { size: 2000, type: WidthType.DXA }, children: [new Paragraph({ children: [new TextRun({ text: currentSize, font: FONTS.body, size: 18 })] })] }),
-            new TableCell({ width: { size: 4000, type: WidthType.DXA }, children: [new Paragraph({ children: [new TextRun({ text: `${beds} : ${priceVal[1]}€`, font: FONTS.body, size: 18 })] })] }),
+            new TableCell({ width: { size: col1, type: WidthType.DXA }, children: [new Paragraph({ children: [new TextRun({ text: currentType, font: FONTS.body, size: FONT_SIZES.body })] })] }),
+            new TableCell({ width: { size: col2, type: WidthType.DXA }, children: [new Paragraph({ children: [new TextRun({ text: currentSize, font: FONTS.body, size: FONT_SIZES.body })] })] }),
+            new TableCell({ width: { size: col3, type: WidthType.DXA }, children: [new Paragraph({ children: [new TextRun({ text: `${beds} : ${priceVal[1]}€`, font: FONTS.body, size: FONT_SIZES.body })] })] }),
           ],
         })
       );
@@ -416,7 +442,7 @@ function buildAnnexeTable(content: string, pageBreak: boolean = false): Paragrap
   }
 
   if (tableRows.length > 1) {
-    paragraphs.push(new Table({ width: { size: 9000, type: WidthType.DXA }, rows: tableRows }) as unknown as Paragraph);
+    paragraphs.push(new Table({ width: { size: tableWidth, type: WidthType.DXA }, rows: tableRows }) as unknown as Paragraph);
   } else {
     paragraphs.push(...parseContent(content, "annexe_2", { keepTogether: false }));
   }
