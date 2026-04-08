@@ -2,23 +2,20 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { authenticate } from "@/lib/auth";
 import { convertDocxToPdf } from "@/lib/pdf-converter";
-import { downloadFile } from "@/lib/google-drive";
-import {
-  getAccessToken,
-  createTemplateWithDocument,
-  updateTemplateDocument,
-  createPowerForm,
-} from "@/lib/docusign";
+import { downloadFile, uploadPdf } from "@/lib/google-drive";
+import { getAccessToken } from "@/lib/docusign";
 
-// ─── Anchor tabs config (V7 — validated) ───
+const BASE_URL = process.env.DOCUSIGN_BASE_URL!;
+const ACCOUNT_ID = process.env.DOCUSIGN_ACCOUNT_ID!;
 
-function countPdfPages(pdfBuffer: Buffer): number {
-  const text = pdfBuffer.toString("latin1");
-  const matches = text.match(/\/Type\s*\/Page[^s]/g);
-  return matches ? matches.length : 0;
+// ─── Anchor tabs config (V7) ───
+
+function countPdfPages(buf: Buffer): number {
+  const text = buf.toString("latin1");
+  return (text.match(/\/Type\s*\/Page[^s]/g) || []).length;
 }
 
-function buildTabsConfig(contractCode: string, pageCount: number) {
+function buildTemplateBody(code: string, pdfBase64: string, pageCount: number) {
   const common = {
     locked: "false", disableAutoSize: "false", concealValueOnDocument: "false",
     maxLength: "4000", shared: "false", requireInitialOnSharedChange: "false", requireAll: "false",
@@ -43,8 +40,7 @@ function buildTabsConfig(contractCode: string, pageCount: number) {
     { anchorString: "originaux le", anchorXOffset: "70", anchorYOffset: "0", anchorUnits: "pixels", ...s8, ...common, tabLabel: "date_signature", value: "Date", required: "true", width: 150, height: 15 },
   ];
 
-  // Add SIREN tab for société variants (.S)
-  if (contractCode.includes(".S")) {
+  if (code.includes(".S")) {
     textTabs.push({
       anchorString: "/sr1/", ...a0, ...s9, ...common,
       tabLabel: "siren", value: "Numéro SIREN", required: "true", width: 150, height: 15,
@@ -58,12 +54,26 @@ function buildTabsConfig(contractCode: string, pageCount: number) {
   }));
 
   return {
-    textTabs,
-    signHereTabs: [{
-      anchorString: "/sn1/", anchorXOffset: "0", anchorYOffset: "65", anchorUnits: "pixels",
-      scaleValue: "1.25", tabLabel: "signature_proprietaire",
-    }],
-    initialHereTabs,
+    name: `CE - ${code}`,
+    description: `Contract Engine — ${code}`,
+    emailSubject: "Contrat de conciergerie — Signature requise",
+    documents: [{ documentBase64: pdfBase64, name: `${code}.pdf`, fileExtension: "pdf", documentId: "1" }],
+    recipients: {
+      signers: [{
+        roleName: "PROPRIETAIRE", recipientId: "1", routingOrder: "1", requireIdLookup: "false",
+        tabs: {
+          textTabs,
+          signHereTabs: [{ anchorString: "/sn1/", anchorXOffset: "0", anchorYOffset: "65", anchorUnits: "pixels", scaleValue: "1.25", tabLabel: "signature_proprietaire" }],
+          initialHereTabs,
+        },
+      }],
+      carbonCopies: [{
+        roleName: "LETAHOST LLC", recipientId: "2", routingOrder: "2",
+        name: "Loïc CARDIN", email: "direction@conciergerie-letahost.com",
+        templateLocked: "true", templateRequired: "true",
+      }],
+    },
+    status: "created",
   };
 }
 
@@ -74,17 +84,14 @@ export async function POST(request: NextRequest) {
   if (authError) return authError;
 
   try {
-    const body = await request.json();
-    const description = body.description as string;
-    if (!description) {
-      return NextResponse.json({ success: false, error: "Le champ 'description' est requis" }, { status: 400 });
-    }
-
     const contracts = await prisma.contract.findMany({ orderBy: { id: "asc" } });
     const token = await getAccessToken();
-    void token; // used indirectly via docusign.ts functions
 
-    const results: { code: string; status: string; template_id?: string; powerform_url?: string }[] = [];
+    // Find the latest Drive output folder for PDF uploads
+    // We'll upload PDFs alongside the DOCX in the same root folder
+    const rootFolderId = process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID!;
+
+    const results: { code: string; status: string; powerform_url?: string; is_new?: boolean }[] = [];
     const errors: { code: string; error: string }[] = [];
 
     for (const contract of contracts) {
@@ -99,46 +106,49 @@ export async function POST(request: NextRequest) {
         // 2. Convert to PDF via LibreOffice
         const pdfBuffer = await convertDocxToPdf(docxBuffer);
         const pageCount = countPdfPages(pdfBuffer);
+        const pdfBase64 = pdfBuffer.toString("base64");
 
-        const templateName = `CE - ${contract.code}`;
+        // 3. Upload PDF to Drive (in root folder for now)
+        await uploadPdf(rootFolderId, `CE - ${contract.code}`, pdfBuffer);
 
         if (!contract.docusignTemplateId) {
           // A) First time — create template + PowerForm
-          const templateId = await createTemplateWithDocument(
-            contract.code, pdfBuffer, `${contract.code}.pdf`, "pdf"
-          );
+          const body = buildTemplateBody(contract.code, pdfBase64, pageCount);
 
-          // Update template tabs via the tabs config
-          // The createTemplateWithDocument function in docusign.ts already handles basic tabs
-          // But we need to apply V7 tabs — we do this by updating the recipient tabs
-          const tabs = buildTabsConfig(contract.code, pageCount);
-          const baseUrl = process.env.DOCUSIGN_BASE_URL!;
-          const accountId = process.env.DOCUSIGN_ACCOUNT_ID!;
-          const accessToken = await getAccessToken();
+          const createRes = await fetch(`${BASE_URL}/v2.1/accounts/${ACCOUNT_ID}/templates`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          });
 
-          // Get the recipient ID from the template
-          const recipRes = await fetch(
-            `${baseUrl}/v2.1/accounts/${accountId}/templates/${templateId}/recipients`,
-            { headers: { Authorization: `Bearer ${accessToken}` } }
-          );
-          const recipData = await recipRes.json();
-          const signerId = recipData.signers?.[0]?.recipientId;
-
-          if (signerId) {
-            // Update tabs with V7 config
-            await fetch(
-              `${baseUrl}/v2.1/accounts/${accountId}/templates/${templateId}/recipients/${signerId}/tabs`,
-              {
-                method: "PUT",
-                headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
-                body: JSON.stringify(tabs),
-              }
-            );
+          if (!createRes.ok) {
+            const err = await createRes.text();
+            throw new Error(`Création template (${createRes.status}): ${err.substring(0, 200)}`);
           }
 
+          const templateData = await createRes.json();
+          const templateId = templateData.templateId;
+
           // Create PowerForm
-          const { powerFormId } = await createPowerForm(templateId, contract.code);
-          const powerFormUrl = `https://powerforms.docusign.net/${powerFormId}?env=eu&acct=${accountId}&v=2`;
+          const pfRes = await fetch(`${BASE_URL}/v2.1/accounts/${ACCOUNT_ID}/powerforms`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              name: `CE - ${contract.code}`,
+              templateId,
+              signingMode: "direct",
+              roles: [{ roleName: "PROPRIETAIRE", name: "", email: "" }],
+            }),
+          });
+
+          if (!pfRes.ok) {
+            const err = await pfRes.text();
+            throw new Error(`Création PowerForm (${pfRes.status}): ${err.substring(0, 200)}`);
+          }
+
+          const pfData = await pfRes.json();
+          const powerFormId = pfData.powerFormId;
+          const powerFormUrl = `https://powerforms.docusign.net/${powerFormId}?env=eu&acct=${ACCOUNT_ID}&v=2`;
 
           // Update DB
           await prisma.contract.update({
@@ -146,22 +156,37 @@ export async function POST(request: NextRequest) {
             data: {
               docusignTemplateId: templateId,
               docusignPowerformId: powerFormId,
-              docusignTemplateName: templateName,
+              docusignTemplateName: `CE - ${contract.code}`,
             },
           });
 
-          results.push({ code: contract.code, status: "ok", template_id: templateId, powerform_url: powerFormUrl });
+          results.push({ code: contract.code, status: "ok", powerform_url: powerFormUrl, is_new: true });
         } else {
           // B) Update — replace document in existing template
-          await updateTemplateDocument(
-            contract.docusignTemplateId, pdfBuffer, `${contract.code}.pdf`, "pdf"
+          const mimeType = "application/pdf";
+          const updateRes = await fetch(
+            `${BASE_URL}/v2.1/accounts/${ACCOUNT_ID}/templates/${contract.docusignTemplateId}/documents/1`,
+            {
+              method: "PUT",
+              headers: {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": mimeType,
+                "Content-Disposition": `file; filename="${contract.code}.pdf"; documentid=1; fileExtension=pdf`,
+              },
+              body: new Uint8Array(pdfBuffer),
+            }
           );
 
+          if (!updateRes.ok) {
+            const err = await updateRes.text();
+            throw new Error(`Update template (${updateRes.status}): ${err.substring(0, 200)}`);
+          }
+
           const powerFormUrl = contract.docusignPowerformId
-            ? `https://powerforms.docusign.net/${contract.docusignPowerformId}?env=eu&acct=${process.env.DOCUSIGN_ACCOUNT_ID}&v=2`
+            ? `https://powerforms.docusign.net/${contract.docusignPowerformId}?env=eu&acct=${ACCOUNT_ID}&v=2`
             : undefined;
 
-          results.push({ code: contract.code, status: "ok", template_id: contract.docusignTemplateId, powerform_url: powerFormUrl });
+          results.push({ code: contract.code, status: "ok", powerform_url: powerFormUrl, is_new: false });
         }
       } catch (err) {
         const message = err instanceof Error ? err.message : "Erreur inconnue";
@@ -171,23 +196,15 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Insert version record
+    // Insert version
     const lastVersion = await prisma.version.findFirst({ orderBy: { versionNumber: "desc" } });
     const versionNumber = (lastVersion?.versionNumber || 0) + 1;
-
-    await prisma.version.create({
-      data: {
-        versionNumber,
-        description,
-        pushedBy: "contract-engine",
-      },
-    });
+    await prisma.version.create({ data: { versionNumber, pushedBy: "contract-engine" } });
 
     return NextResponse.json({
       success: true,
       data: {
         version_number: versionNumber,
-        description,
         pushed_at: new Date().toISOString(),
         results,
         errors,
