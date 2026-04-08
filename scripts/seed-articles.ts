@@ -23,6 +23,7 @@ interface ArticleData {
   contentClassique?: string | null;
   contentStudio?: string | null;
   content20pct?: string | null;
+  isPageBreakBefore?: boolean;
 }
 
 const articles: ArticleData[] = [
@@ -797,6 +798,7 @@ Pendant toute la durée d'exécution du Contrat de Prestation de Services, le PR
     code: "art_3_1",
     title: "Durée et levée de la Promesse par le prestataire",
     orderIndex: 300,
+    isPageBreakBefore: true,
     scope: "common",
     contentCommon: `ARTICLE 3 - DUREE DE LA PROMESSE – SIGNATURE DU CONTRAT DÉFINITIF DE PRESTATION DE SERVICES
 
@@ -913,6 +915,7 @@ Les Parties aux présentes reconnaissent que :
     code: "bloc_signature",
     title: "Bloc de signature",
     orderIndex: 370,
+    isPageBreakBefore: true,
     scope: "common",
     contentCommon: `Réputé fait à                                                                         , en deux originaux le :
 Lu et approuvé par les deux parties,
@@ -924,11 +927,12 @@ Bon pour accord et signature du PROPRIÉTAIRE         Bon pour accord et cachet 
 Bon pour accord`,
   },
 
-  // 38. annexe_1
+  // 39. annexe_1
   {
     code: "annexe_1",
     title: "Équipements",
     orderIndex: 380,
+    isPageBreakBefore: true,
     scope: "common",
     contentCommon: `ANNEXE 1 : ÉQUIPEMENTS
 
@@ -986,11 +990,12 @@ Equipements obligatoires :
 * Aménagements extérieurs (mobilier de jardin, jacuzzi, barbecue...)`,
   },
 
-  // 39. annexe_2
+  // 40. annexe_2
   {
     code: "annexe_2",
     title: "Grille estimative ménage",
     orderIndex: 390,
+    isPageBreakBefore: true,
     scope: "menage",
     contentZonesCj: `ANNEXE 2 - GRILLE ESTIMATIVE MÉNAGE
 
@@ -1202,6 +1207,7 @@ async function main() {
       contentClassique: article.contentClassique ?? null,
       contentStudio: article.contentStudio ?? null,
       content20pct: article.content20pct ?? null,
+      isPageBreakBefore: article.isPageBreakBefore ?? false,
     };
 
     await prisma.article.upsert({

@@ -34,15 +34,10 @@ function loadImage(filename: string): Buffer {
   return loadFile(`public/images/${filename}`);
 }
 
-// ─── Anchor tab helper (invisible white 1pt) ───
+// ─── Anchor tab (invisible white 1pt) ───
 
 function anchorTab(tag: string): TextRun {
-  return new TextRun({
-    text: tag,
-    font: FONTS.body,
-    size: FONT_SIZES.anchorTab,
-    color: "FFFFFF",
-  });
+  return new TextRun({ text: tag, font: FONTS.body, size: FONT_SIZES.anchorTab, color: "FFFFFF" });
 }
 
 // ─── Empty paragraph ───
@@ -60,6 +55,20 @@ function isSubsectionTitle(line: string): boolean {
   return /^\d+\.\d+(\.\d+)*\.?\s/.test(line);
 }
 
+/**
+ * Detect if a subsection line is a "title-only" line (just the number + short title)
+ * vs a "number + paragraph" line (number followed by substantial text).
+ * Rule: if the text after the number is > 60 chars, it's a paragraph (number bold, text normal).
+ * Otherwise it's a title (all bold).
+ */
+function splitSubsectionLine(line: string): { number: string; rest: string; isTitleOnly: boolean } {
+  const match = line.match(/^(\d+\.\d+(\.\d+)*\.?\s+)(.*)/);
+  if (!match) return { number: "", rest: line, isTitleOnly: true };
+  const num = match[1];
+  const rest = match[3];
+  return { number: num, rest, isTitleOnly: rest.length <= 60 };
+}
+
 function isBulletLine(line: string): boolean {
   const t = line.trimStart();
   return t.startsWith("* ") || t.startsWith("- ") || t.startsWith("— ") ||
@@ -74,45 +83,31 @@ function parseBulletText(line: string): string {
   return line.replace(/^[\s]*[*\-—·⁠]\s*/, "").trim();
 }
 
-// ─── Italic detection for "la Partie" / "les Parties" ───
+// ─── Italic rendering for "la Partie" / "les Parties" ───
 
-function renderLineWithItalics(text: string, fontSize: number, bold: boolean, underline: boolean): TextRun[] {
-  // Detect "la Partie" and "les Parties" for italic rendering
-  const italicPattern = /(la Partie|les Parties)/g;
+function renderWithItalics(text: string, fontSize: number, bold: boolean, underline: boolean): TextRun[] {
+  const pattern = /(la Partie|les Parties)/g;
   const runs: TextRun[] = [];
-  let lastIndex = 0;
-  let match;
+  let lastIdx = 0;
+  let m;
 
-  while ((match = italicPattern.exec(text)) !== null) {
-    // Text before the match
-    if (match.index > lastIndex) {
+  while ((m = pattern.exec(text)) !== null) {
+    if (m.index > lastIdx) {
       runs.push(new TextRun({
-        text: text.slice(lastIndex, match.index),
-        font: FONTS.body, size: fontSize, bold,
+        text: text.slice(lastIdx, m.index), font: FONTS.body, size: fontSize, bold,
         underline: underline ? {} : undefined,
       }));
     }
-    // The italic part
     runs.push(new TextRun({
-      text: match[1],
-      font: FONTS.body, size: fontSize, bold, italics: true,
+      text: m[1], font: FONTS.body, size: fontSize, bold, italics: true,
       underline: underline ? {} : undefined,
     }));
-    lastIndex = match.index + match[0].length;
+    lastIdx = m.index + m[0].length;
   }
 
-  // Remaining text
-  if (lastIndex < text.length) {
+  if (lastIdx < text.length || runs.length === 0) {
     runs.push(new TextRun({
-      text: text.slice(lastIndex),
-      font: FONTS.body, size: fontSize, bold,
-      underline: underline ? {} : undefined,
-    }));
-  }
-
-  if (runs.length === 0) {
-    runs.push(new TextRun({
-      text, font: FONTS.body, size: fontSize, bold,
+      text: text.slice(lastIdx), font: FONTS.body, size: fontSize, bold,
       underline: underline ? {} : undefined,
     }));
   }
@@ -124,7 +119,7 @@ function renderLineWithItalics(text: string, fontSize: number, bold: boolean, un
 
 interface ParseOptions {
   keepTogether: boolean;
-  isOwnerFields?: boolean;  // en_tete_proprietaire fields → line spacing 1.5
+  isOwnerFields?: boolean;
 }
 
 function parseContent(content: string, articleCode: string, opts: ParseOptions): Paragraph[] {
@@ -136,43 +131,58 @@ function parseContent(content: string, articleCode: string, opts: ParseOptions):
   for (let i = 0; i < lines.length; i++) {
     const trimmed = lines[i].trim();
 
-    // Empty lines → render as empty paragraph (preserve spacing from model)
+    // Empty lines → empty paragraph (preserve model spacing)
     if (!trimmed) {
       paragraphs.push(emptyParagraph(lineSpacing));
       continue;
     }
 
-    // ARTICLE headers — keepNext + keepLines, no extra spacing
+    // ARTICLE headers — keepNext + keepLines, space_before for separation
     if (isArticleHeader(trimmed)) {
       paragraphs.push(
         new Paragraph({
           alignment: AlignmentType.JUSTIFIED,
-          spacing: { before: SPACING.afterTitle, after: SPACING.afterTitle, line: lineSpacing },
-          keepNext: true,
-          keepLines: true,
+          spacing: { before: 240, after: SPACING.afterTitle, line: lineSpacing },
+          keepNext: true, keepLines: true,
           children: [new TextRun({ text: trimmed, font: FONTS.title, size: FONT_SIZES.articleTitle, bold: true })],
         })
       );
       continue;
     }
 
-    // Subsection titles — keepNext + keepLines, no extra spacing
+    // Subsection titles — 2 cases: title-only (all bold) or number+paragraph (number bold, text normal)
     if (isSubsectionTitle(trimmed)) {
-      paragraphs.push(
-        new Paragraph({
-          alignment: AlignmentType.JUSTIFIED,
-          spacing: { before: SPACING.afterTitle, after: SPACING.afterTitle, line: lineSpacing },
-          keepNext: true,
-          keepLines: true,
-          children: [new TextRun({ text: trimmed, font: FONTS.title, size: FONT_SIZES.articleTitle, bold: true })],
-        })
-      );
+      const { number, rest, isTitleOnly } = splitSubsectionLine(trimmed);
+
+      if (isTitleOnly) {
+        // Pure title: all bold, keepNext
+        paragraphs.push(
+          new Paragraph({
+            alignment: AlignmentType.JUSTIFIED,
+            spacing: { before: 240, after: SPACING.afterTitle, line: lineSpacing },
+            keepNext: true, keepLines: true,
+            children: [new TextRun({ text: trimmed, font: FONTS.title, size: FONT_SIZES.articleTitle, bold: true })],
+          })
+        );
+      } else {
+        // Number + paragraph text: 2 runs
+        paragraphs.push(
+          new Paragraph({
+            alignment: AlignmentType.JUSTIFIED,
+            spacing: { before: 240, after: SPACING.afterParagraph, line: lineSpacing },
+            keepLines: opts.keepTogether,
+            children: [
+              new TextRun({ text: number, font: FONTS.title, size: FONT_SIZES.articleTitle, bold: true }),
+              new TextRun({ text: rest, font: FONTS.body, size: FONT_SIZES.body }),
+            ],
+          })
+        );
+      }
       continue;
     }
 
     // Bullet lines → tiret long + hanging indent
     if (isBulletLine(trimmed)) {
-      const bulletText = parseBulletText(trimmed);
       paragraphs.push(
         new Paragraph({
           alignment: AlignmentType.JUSTIFIED,
@@ -181,7 +191,7 @@ function parseContent(content: string, articleCode: string, opts: ParseOptions):
           keepLines: opts.keepTogether,
           children: [
             new TextRun({ text: "-            ", font: FONTS.body, size: FONT_SIZES.body }),
-            new TextRun({ text: bulletText, font: FONTS.body, size: FONT_SIZES.body }),
+            new TextRun({ text: parseBulletText(trimmed), font: FONTS.body, size: FONT_SIZES.body }),
           ],
         })
       );
@@ -234,7 +244,6 @@ function parseContent(content: string, articleCode: string, opts: ParseOptions):
       trimmed === "ENTRE LES SOUSSIGNÉS" || trimmed === "ET" ||
       trimmed.startsWith("IL EST PRÉALABLEMENT RAPPELÉ") || trimmed.startsWith("CECI EXPOSÉ");
 
-    // Title lines
     const isBigTitle = trimmed === "PROMESSE DE CONTRAT" || trimmed === "DE PRESTATION DE SERVICES";
     const isSmallCentered = trimmed.startsWith("CONCIERGERIE");
     const isCentered = isBigTitle || isSmallCentered;
@@ -244,37 +253,20 @@ function parseContent(content: string, articleCode: string, opts: ParseOptions):
 
     const bold = isBoldLine || isCentered;
     const alignment = isCentered ? AlignmentType.CENTER : AlignmentType.JUSTIFIED;
-
-    // Use italic-aware rendering for lines containing "la Partie" / "les Parties"
     const hasItalic = trimmed.includes("la Partie") || trimmed.includes("les Parties");
 
-    if (hasItalic) {
-      paragraphs.push(
-        new Paragraph({
-          alignment,
-          spacing: { after: SPACING.afterParagraph, line: lineSpacing },
-          keepLines: opts.keepTogether,
-          children: renderLineWithItalics(trimmed, fontSize, bold, isUnderlined),
-        })
-      );
-    } else {
-      paragraphs.push(
-        new Paragraph({
-          alignment,
-          spacing: { after: SPACING.afterParagraph, line: lineSpacing },
-          keepLines: opts.keepTogether,
-          children: [
-            new TextRun({
-              text: trimmed,
-              font: FONTS.body,
-              size: fontSize,
-              bold,
-              underline: isUnderlined ? {} : undefined,
-            }),
-          ],
-        })
-      );
-    }
+    const children = hasItalic
+      ? renderWithItalics(trimmed, fontSize, bold, isUnderlined)
+      : [new TextRun({ text: trimmed, font: FONTS.body, size: fontSize, bold, underline: isUnderlined ? {} : undefined })];
+
+    paragraphs.push(
+      new Paragraph({
+        alignment,
+        spacing: { after: SPACING.afterParagraph, line: lineSpacing },
+        keepLines: opts.keepTogether,
+        children,
+      })
+    );
   }
 
   return paragraphs;
@@ -286,8 +278,7 @@ function buildCommentBox(): Paragraph[] {
   return [
     new Paragraph({
       spacing: { before: 200, after: 100, line: SPACING.lineBody },
-      keepNext: true,
-      keepLines: true,
+      keepNext: true, keepLines: true,
       children: [new TextRun({ text: "ARTICLE 9 - COMMENTAIRES", font: FONTS.title, size: FONT_SIZES.articleTitle, bold: true })],
     }),
     new Paragraph({
@@ -320,16 +311,17 @@ function buildCommentBox(): Paragraph[] {
 
 function buildSignatureBlock(content: string, tamponImage: Buffer): Paragraph[] {
   const paras = parseContent(content, "bloc_signature", { keepTogether: true });
+  // keepNext on ALL paragraphs so the block stays together on one page
   for (const p of paras) {
     (p as unknown as { keepNext: boolean }).keepNext = true;
+    (p as unknown as { keepLines: boolean }).keepLines = true;
   }
 
   paras.push(
     new Paragraph({ spacing: { before: 200 }, keepNext: true, keepLines: true, children: [anchorTab("/vi1/"), anchorTab("/dt1/")] }),
     new Paragraph({ spacing: { before: 400 }, keepNext: true, keepLines: true, children: [anchorTab("/sn1/")] }),
     new Paragraph({
-      alignment: AlignmentType.RIGHT,
-      keepLines: true,
+      alignment: AlignmentType.RIGHT, keepLines: true,
       children: [new ImageRun({ data: tamponImage, transformation: { width: SIGNATURE.tamponWidthPx, height: SIGNATURE.tamponHeightPx }, type: "png" })],
     })
   );
@@ -399,7 +391,7 @@ function buildAnnexeTable(content: string): Paragraph[] {
   return paragraphs;
 }
 
-// ─── ZIP post-processing: inject reference header/footer ───
+// ─── ZIP post-processing ───
 
 async function injectTemplateHeaderFooter(docxBuffer: Buffer): Promise<Buffer> {
   const zip = await JSZip.loadAsync(docxBuffer);
@@ -428,35 +420,27 @@ export async function generateDocx(
   const children: Paragraph[] = [];
 
   for (const article of assembledArticles) {
-    const needsPageBreak =
-      article.isPageBreakBefore ||
-      article.code === "bloc_signature" ||
-      article.code === "annexe_1" ||
-      article.code === "annexe_2";
+    const needsPageBreak = article.isPageBreakBefore;
 
     if (article.code === "art_9") {
       const box = buildCommentBox();
-      if (needsPageBreak && box.length > 0) {
-        (box[0] as unknown as { pageBreakBefore: boolean }).pageBreakBefore = true;
-      }
+      if (needsPageBreak && box.length > 0) (box[0] as unknown as { pageBreakBefore: boolean }).pageBreakBefore = true;
       children.push(...box);
       continue;
     }
 
     if (article.code === "bloc_signature") {
       const sig = buildSignatureBlock(article.content, tamponImage);
-      if (sig.length > 0) {
-        (sig[0] as unknown as { pageBreakBefore: boolean }).pageBreakBefore = true;
-      }
+      // Always page break before signature
+      if (sig.length > 0) (sig[0] as unknown as { pageBreakBefore: boolean }).pageBreakBefore = true;
       children.push(...sig);
       continue;
     }
 
     if (article.code === "annexe_2") {
       const annexe = buildAnnexeTable(article.content);
-      if (annexe.length > 0) {
-        (annexe[0] as unknown as { pageBreakBefore: boolean }).pageBreakBefore = true;
-      }
+      // Always page break before annexe 2
+      if (annexe.length > 0) (annexe[0] as unknown as { pageBreakBefore: boolean }).pageBreakBefore = true;
       children.push(...annexe);
       continue;
     }
@@ -474,33 +458,19 @@ export async function generateDocx(
   }
 
   const doc = new Document({
-    sections: [
-      {
-        properties: {
-          page: {
-            size: { width: PAGE.width, height: PAGE.height },
-            margin: {
-              top: PAGE.margin.top,
-              bottom: PAGE.margin.bottom,
-              left: PAGE.margin.left,
-              right: PAGE.margin.right,
-              header: PAGE.margin.header,
-              footer: PAGE.margin.footer,
-            },
-          },
+    sections: [{
+      properties: {
+        page: {
+          size: { width: PAGE.width, height: PAGE.height },
+          margin: { top: PAGE.margin.top, bottom: PAGE.margin.bottom, left: PAGE.margin.left, right: PAGE.margin.right, header: PAGE.margin.header, footer: PAGE.margin.footer },
         },
-        headers: {
-          default: new Header({ children: [new Paragraph({ children: [new TextRun({ text: " ", size: 2 })] })] }),
-        },
-        footers: {
-          default: new Footer({ children: [new Paragraph({ children: [new TextRun({ text: " ", size: 2 })] })] }),
-        },
-        children,
       },
-    ],
+      headers: { default: new Header({ children: [new Paragraph({ children: [new TextRun({ text: " ", size: 2 })] })] }) },
+      footers: { default: new Footer({ children: [new Paragraph({ children: [new TextRun({ text: " ", size: 2 })] })] }) },
+      children,
+    }],
   });
 
   const rawBuffer = await Packer.toBuffer(doc);
-  const finalBuffer = await injectTemplateHeaderFooter(Buffer.from(rawBuffer));
-  return finalBuffer;
+  return await injectTemplateHeaderFooter(Buffer.from(rawBuffer));
 }
