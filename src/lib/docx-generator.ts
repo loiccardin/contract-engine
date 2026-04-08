@@ -128,25 +128,34 @@ function parseContent(content: string, articleCode: string, opts: ParseOptions):
   const isOwner = articleCode === "en_tete_proprietaire";
   const lineSpacing = (opts.isOwnerFields || isOwner) ? SPACING.lineFieldsOwner : SPACING.lineBody;
 
+  // Track if last emitted paragraph was a title (keepNext) to skip empty lines after it
+  let lastWasTitle = false;
+
   for (let i = 0; i < lines.length; i++) {
     const trimmed = lines[i].trim();
 
-    // Empty lines → empty paragraph (preserve model spacing)
+    // Empty lines handling
     if (!trimmed) {
+      // Skip empty lines that follow a title — prevents keepNext binding to empty paragraph
+      if (lastWasTitle) continue;
       paragraphs.push(emptyParagraph(lineSpacing));
       continue;
     }
+
+    // Reset title flag for non-empty lines
+    lastWasTitle = false;
 
     // ARTICLE headers — keepNext + keepLines, space_before for separation
     if (isArticleHeader(trimmed)) {
       paragraphs.push(
         new Paragraph({
           alignment: AlignmentType.JUSTIFIED,
-          spacing: { before: 240, after: SPACING.afterTitle, line: lineSpacing },
+          spacing: { before: 240, after: 60, line: lineSpacing },
           keepNext: true, keepLines: true,
           children: [new TextRun({ text: trimmed, font: FONTS.title, size: FONT_SIZES.articleTitle, bold: true })],
         })
       );
+      lastWasTitle = true;
       continue;
     }
 
@@ -155,15 +164,16 @@ function parseContent(content: string, articleCode: string, opts: ParseOptions):
       const { number, rest, isTitleOnly } = splitSubsectionLine(trimmed);
 
       if (isTitleOnly) {
-        // Pure title: all bold, keepNext
+        // Pure title: all bold, keepNext, skip empty lines after
         paragraphs.push(
           new Paragraph({
             alignment: AlignmentType.JUSTIFIED,
-            spacing: { before: 240, after: SPACING.afterTitle, line: lineSpacing },
+            spacing: { before: 240, after: 60, line: lineSpacing },
             keepNext: true, keepLines: true,
             children: [new TextRun({ text: trimmed, font: FONTS.title, size: FONT_SIZES.articleTitle, bold: true })],
           })
         );
+        lastWasTitle = true;
       } else {
         // Number + paragraph text: 2 runs
         paragraphs.push(
@@ -420,28 +430,30 @@ export async function generateDocx(
   const children: Paragraph[] = [];
 
   for (const article of assembledArticles) {
-    const needsPageBreak = article.isPageBreakBefore;
+    // Page break: insert a dedicated paragraph with pageBreakBefore
+    // (mutating Paragraph after construction doesn't work with the docx lib)
+    const needsPageBreak =
+      article.isPageBreakBefore ||
+      article.code === "bloc_signature" ||
+      article.code === "annexe_1" ||
+      article.code === "annexe_2";
+
+    if (needsPageBreak && children.length > 0) {
+      children.push(new Paragraph({ pageBreakBefore: true, children: [] }));
+    }
 
     if (article.code === "art_9") {
-      const box = buildCommentBox();
-      if (needsPageBreak && box.length > 0) (box[0] as unknown as { pageBreakBefore: boolean }).pageBreakBefore = true;
-      children.push(...box);
+      children.push(...buildCommentBox());
       continue;
     }
 
     if (article.code === "bloc_signature") {
-      const sig = buildSignatureBlock(article.content, tamponImage);
-      // Always page break before signature
-      if (sig.length > 0) (sig[0] as unknown as { pageBreakBefore: boolean }).pageBreakBefore = true;
-      children.push(...sig);
+      children.push(...buildSignatureBlock(article.content, tamponImage));
       continue;
     }
 
     if (article.code === "annexe_2") {
-      const annexe = buildAnnexeTable(article.content);
-      // Always page break before annexe 2
-      if (annexe.length > 0) (annexe[0] as unknown as { pageBreakBefore: boolean }).pageBreakBefore = true;
-      children.push(...annexe);
+      children.push(...buildAnnexeTable(article.content));
       continue;
     }
 
@@ -449,10 +461,6 @@ export async function generateDocx(
       keepTogether: article.keepTogether,
       isOwnerFields: article.code === "en_tete_proprietaire",
     });
-
-    if (needsPageBreak && paras.length > 0) {
-      (paras[0] as unknown as { pageBreakBefore: boolean }).pageBreakBefore = true;
-    }
 
     children.push(...paras);
   }
