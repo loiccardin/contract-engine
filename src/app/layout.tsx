@@ -14,8 +14,8 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "Contract Engine — Letahost",
-  description: "Gestion des 18 variantes de contrats de conciergerie",
+  title: "Contract Engine",
+  description: "Plateforme de gestion et generation des contrats de conciergerie Letahost",
 };
 
 export default function RootLayout({
@@ -26,7 +26,7 @@ export default function RootLayout({
   return (
     <html lang="fr">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-slate-50 text-gray-900`}
       >
         {children}
       </body>

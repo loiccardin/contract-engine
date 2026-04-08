@@ -44,49 +44,77 @@ export default function PushPage() {
     const okCount = data.results.filter(r => r.status === "ok").length;
     return (
       <div className="min-h-screen bg-slate-50">
-        <header className="bg-white border-b border-gray-200 px-6 py-4 sticky top-0 z-10">
+        <header className="bg-white border-b border-gray-200 px-6 py-4 sticky top-0 z-10 shadow-sm">
           <div className="max-w-4xl mx-auto flex items-center justify-between">
-            <h1 className="text-lg font-semibold text-gray-900">Contract Engine</h1>
+            <div className="flex items-center gap-2.5">
+              <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-indigo-600 text-white">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+              </div>
+              <h1 className="text-lg font-semibold text-gray-900 tracking-tight">Contract Engine</h1>
+            </div>
             <StepIndicator currentStep={3} />
           </div>
         </header>
         <main className="max-w-4xl mx-auto px-6 py-8">
-          <div className="mb-6">
-            <h2 className="text-xl font-semibold text-gray-900">Push DocuSign terminé</h2>
-            <p className="text-sm text-gray-400 mt-1">
-              Version {data.version_number} — {okCount}/18 ok — {new Date(data.pushed_at).toLocaleString("fr-FR")}
-            </p>
+          <div className="mb-8">
+            <div className="flex items-center gap-3 mb-1">
+              <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-emerald-100">
+                <svg className="w-5 h-5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900 tracking-tight">Push DocuSign termine</h2>
+                <p className="text-sm text-gray-500">
+                  Version {data.version_number} — {okCount}/18 ok — {new Date(data.pushed_at).toLocaleString("fr-FR")}
+                </p>
+              </div>
+            </div>
           </div>
 
           <div className="space-y-2">
             {data.results.map(r => (
-              <div key={r.code} className="flex items-center justify-between bg-white rounded-lg border border-gray-200 px-4 py-3">
+              <div key={r.code} className="flex items-center justify-between bg-white rounded-xl border border-gray-200 px-5 py-3.5 shadow-sm hover:shadow-md transition-shadow">
                 <div className="flex items-center gap-3">
                   <span className={`w-2 h-2 rounded-full ${r.status === "ok" ? "bg-emerald-500" : "bg-red-500"}`} />
                   <span className="font-medium text-gray-800">{r.code}</span>
                   {r.status === "ok" && r.is_new && (
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">Nouveau</span>
+                    <span className="text-xs font-medium px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">Nouveau</span>
                   )}
                   {r.status === "ok" && r.is_new === false && (
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-700">Mis à jour</span>
+                    <span className="text-xs font-medium px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">Mis a jour</span>
                   )}
                 </div>
                 {r.powerform_url && (
                   <a href={r.powerform_url} target="_blank" rel="noopener noreferrer"
-                    className="text-sm text-violet-600 hover:underline">PowerForm</a>
+                    className="text-sm text-indigo-600 hover:text-indigo-700 font-medium hover:underline">PowerForm</a>
                 )}
               </div>
             ))}
           </div>
 
           {data.errors.length > 0 && (
-            <div className="mt-6 p-4 bg-red-50 rounded-lg border border-red-200">
-              <p className="text-sm font-medium text-red-700 mb-2">Erreurs :</p>
+            <div className="mt-6 p-4 bg-red-50 rounded-xl border border-red-200">
+              <p className="text-sm font-medium text-red-700 mb-2">Erreurs</p>
               {data.errors.map(e => (
                 <p key={e.code} className="text-sm text-red-600">{e.code} : {e.error}</p>
               ))}
             </div>
           )}
+
+          <div className="mt-8 pt-6 border-t border-gray-200 flex gap-3">
+            <a href="/editor" className="inline-flex items-center gap-2 px-5 py-2.5 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors text-sm">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+              Retour a l&apos;editeur
+            </a>
+            <a href="/generate" className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition-colors text-sm shadow-sm">
+              Regenerer
+            </a>
+          </div>
         </main>
       </div>
     );
@@ -97,9 +125,16 @@ export default function PushPage() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <header className="bg-white border-b border-gray-200 px-6 py-4 sticky top-0 z-10">
+      <header className="bg-white border-b border-gray-200 px-6 py-4 sticky top-0 z-10 shadow-sm">
         <div className="max-w-4xl mx-auto flex items-center justify-between">
-          <h1 className="text-lg font-semibold text-gray-900">Contract Engine</h1>
+          <div className="flex items-center gap-2.5">
+            <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-indigo-600 text-white">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+            </div>
+            <h1 className="text-lg font-semibold text-gray-900 tracking-tight">Contract Engine</h1>
+          </div>
           <StepIndicator currentStep={3} />
         </div>
       </header>
@@ -107,24 +142,35 @@ export default function PushPage() {
         {contractsWithPF.length > 0 ? (
           <>
             <div className="mb-6">
-              <h2 className="text-xl font-semibold text-gray-900">PowerForms DocuSign</h2>
-              <p className="text-sm text-gray-400 mt-1">{contractsWithPF.length} templates configurés</p>
+              <h2 className="text-xl font-semibold text-gray-900 tracking-tight">PowerForms DocuSign</h2>
+              <p className="text-sm text-gray-500 mt-1">{contractsWithPF.length} templates configures</p>
             </div>
             <div className="space-y-2">
               {contractsWithPF.map(c => (
-                <div key={c.code} className="flex items-center justify-between bg-white rounded-lg border border-gray-200 px-4 py-3">
+                <div key={c.code} className="flex items-center justify-between bg-white rounded-xl border border-gray-200 px-5 py-3.5 shadow-sm hover:shadow-md transition-shadow">
                   <span className="font-medium text-gray-800">{c.code}</span>
                   <a href={`https://powerforms.docusign.net/${c.docusignPowerformId}?env=eu&acct=${accountId}&v=2`}
                     target="_blank" rel="noopener noreferrer"
-                    className="text-sm text-violet-600 hover:underline">PowerForm</a>
+                    className="text-sm text-indigo-600 hover:text-indigo-700 font-medium hover:underline">PowerForm</a>
                 </div>
               ))}
             </div>
           </>
         ) : (
-          <div className="text-center py-16">
-            <h2 className="text-xl font-semibold text-gray-900 mb-2">Aucun push effectué</h2>
-            <p className="text-gray-400">Allez sur Générer pour créer les contrats et les pousser dans DocuSign.</p>
+          <div className="text-center py-20 bg-white rounded-xl border border-gray-200">
+            <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-gray-100 mb-4">
+              <svg className="w-7 h-7 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+              </svg>
+            </div>
+            <h2 className="text-lg font-semibold text-gray-900 mb-2">Aucun push effectue</h2>
+            <p className="text-gray-500 text-sm">Allez sur Generer pour creer les contrats et les pousser dans DocuSign.</p>
+            <a href="/generate" className="inline-flex items-center gap-2 mt-6 px-5 py-2.5 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition-colors text-sm shadow-sm">
+              Aller a la generation
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </a>
           </div>
         )}
       </main>
