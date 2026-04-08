@@ -46,9 +46,11 @@ function computeSectionNumbers(
   const numbers = new Map<string, string>();
 
   // Groupe 2.2 : articles dont le code commence par "art_2_2_"
+  // Exclure art_2_2_intro (titre parent "2.2. Services assurés", pas une sous-section)
   let counter22 = 1;
   for (const a of filteredArticles) {
     if (!a.code.startsWith("art_2_2_")) continue;
+    if (a.code === "art_2_2_intro") continue;
     numbers.set(a.code, `2.2.${counter22}`);
     counter22++;
   }

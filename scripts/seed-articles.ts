@@ -253,15 +253,22 @@ Tout service supplémentaire non désigné à l'article 2.2 devra faire l'objet 
 Il est convenu entre les Parties que le PRESTATAIRE dispose de la faculté de déléguer l'exécution d'un ou plusieurs services à un tiers de son choix, sous sa responsabilité. Cette faculté de substitution est de plein droit et ne saurait modifier l'économie générale du Contrat de Prestation de Services.`,
   },
 
-  // 10. art_2_2_1_menage
+  // 10. art_2_2_intro (titre parent section 2.2)
+  {
+    code: "art_2_2_intro",
+    title: "Services assurés par le prestataire",
+    orderIndex: 95,
+    scope: "common",
+    contentCommon: `2.2. Services assurés par le prestataire`,
+  },
+
+  // 11. art_2_2_1_menage
   {
     code: "art_2_2_1_menage",
     title: "Services de ménage",
     orderIndex: 100,
     scope: "menage",
-    contentZonesCj: `2.2. Services assurés par le prestataire
-
-2.2.1. Services de Ménage
+    contentZonesCj: `2.2.1. Services de Ménage
 
 2.2.1.1. Services de ménage effectués avant le séjour d'un ou plusieurs Voyageur(s) et les consommables fournis
 
@@ -304,9 +311,7 @@ Le PRESTATAIRE ne réalisera pas en toute hypothèse les services suivants :
 * le jardinage et le nettoyage de tout abri de jardin ; le retrait des substances végétales ;
 * la réfection des surfaces comme les planchers bois, poutres, carrelages rayés, jointoiement de douche, de baignoires, de lavabos, paillasse de cuisine, plinthes de sol, calfeutrement des menuiseries, mise en jeu des portes et huisseries intérieures et extérieures
 * et, d'une manière générale, tous travaux de remise en état ou d'entretien courant qui pourraient affecter le LOGEMENT en sa capacité d'hébergement.`,
-    contentZonesR: `2.2. Services assurés par le prestataire
-
-2.2.1. Services de Ménage
+    contentZonesR: `2.2.1. Services de Ménage
 
 2.2.1.1. Services de ménage effectués avant le séjour d'un ou plusieurs Voyageur(s) et les consommables fournis
 

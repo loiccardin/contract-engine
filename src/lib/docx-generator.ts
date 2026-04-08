@@ -226,23 +226,42 @@ function parseContent(content: string, articleCode: string, opts: ParseOptions):
         ["Téléphone", "/tl1/"],
         ["Mail", "/ml1/"],
         ["Adresse du/des LOGEMENT", "/lg1/"],
-        ["Numéro SIREN", "/ad1/"],
+        ["Numéro SIREN", "/sr1/"],
         ["Représentée par", "/nm1/"],
       ];
       let found = false;
       for (const [prefix, tag] of anchors) {
         if (trimmed.startsWith(prefix)) {
-          paragraphs.push(
-            new Paragraph({
-              alignment: AlignmentType.JUSTIFIED,
-              spacing: { after: 0, line: SPACING.lineFieldsOwner },
-              keepLines: opts.keepTogether,
-              children: [
-                new TextRun({ text: trimmed + " ", font: FONTS.body, size: FONT_SIZES.body }),
-                anchorTab(tag),
-              ],
-            })
-          );
+          // Special case: "Représentée par" → insert /nm1/ after "par "
+          if (prefix === "Représentée par") {
+            const insertIdx = trimmed.indexOf("par ") + 4;
+            const before = trimmed.slice(0, insertIdx);
+            const after = trimmed.slice(insertIdx);
+            paragraphs.push(
+              new Paragraph({
+                alignment: AlignmentType.JUSTIFIED,
+                spacing: { after: 0, line: SPACING.lineFieldsOwner },
+                keepLines: opts.keepTogether,
+                children: [
+                  new TextRun({ text: before, font: FONTS.body, size: FONT_SIZES.body }),
+                  anchorTab(tag),
+                  new TextRun({ text: after, font: FONTS.body, size: FONT_SIZES.body }),
+                ],
+              })
+            );
+          } else {
+            paragraphs.push(
+              new Paragraph({
+                alignment: AlignmentType.JUSTIFIED,
+                spacing: { after: 0, line: SPACING.lineFieldsOwner },
+                keepLines: opts.keepTogether,
+                children: [
+                  new TextRun({ text: trimmed + " ", font: FONTS.body, size: FONT_SIZES.body }),
+                  anchorTab(tag),
+                ],
+              })
+            );
+          }
           found = true;
           break;
         }
