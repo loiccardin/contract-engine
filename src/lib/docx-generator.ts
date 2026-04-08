@@ -251,6 +251,20 @@ function parseContent(content: string, articleCode: string, opts: ParseOptions):
                 ],
               })
             );
+          } else if (tag === "/lg1/") {
+            // /lg1/ on a separate line below the text so DocuSign places the field underneath
+            paragraphs.push(
+              new Paragraph({
+                alignment: AlignmentType.JUSTIFIED,
+                spacing: { after: 0, line: SPACING.lineFieldsOwner },
+                keepLines: opts.keepTogether,
+                children: [new TextRun({ text: trimmed, font: FONTS.body, size: FONT_SIZES.body })],
+              }),
+              new Paragraph({
+                spacing: { after: 0, line: SPACING.lineBody },
+                children: [anchorTab(tag)],
+              })
+            );
           } else {
             paragraphs.push(
               new Paragraph({
@@ -272,15 +286,18 @@ function parseContent(content: string, articleCode: string, opts: ParseOptions):
     }
 
     // Anchor /lg2/ on "Adresse et description précise du/des LOGEMENT(s)" in preambule
+    // /lg2/ on a separate line below so DocuSign places the field underneath
     if (articleCode === "preambule" && trimmed.startsWith("Adresse et description précise")) {
       paragraphs.push(
         new Paragraph({
           alignment: AlignmentType.JUSTIFIED,
-          spacing: { after: SPACING.afterParagraph, line: lineSpacing },
+          spacing: { after: 0, line: lineSpacing },
           keepLines: opts.keepTogether,
-          children: [
-            new TextRun({ text: trimmed + " ", font: FONTS.body, size: FONT_SIZES.body }),
-            anchorTab("/lg2/"),
+          children: [new TextRun({ text: trimmed, font: FONTS.body, size: FONT_SIZES.body })],
+        }),
+        new Paragraph({
+          spacing: { after: SPACING.afterParagraph, line: SPACING.lineBody },
+          children: [anchorTab("/lg2/"),
           ],
         })
       );
