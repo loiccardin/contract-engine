@@ -1,6 +1,6 @@
-# API — Contract Engine
+# API -- Contract Engine
 
-> Tous les endpoints REST du projet. Mettre à jour à CHAQUE ajout/modification de route.
+> Tous les endpoints REST du projet. Mettre a jour a CHAQUE ajout/modification de route.
 
 ## Base URL
 
@@ -10,13 +10,15 @@
 
 ## Authentification
 
-Toutes les routes nécessitent un header `Authorization: Bearer {APP_SECRET}`.
-Réponse si non authentifié : `401 { success: false, error: "Non authentifié" }`
+Toutes les routes necessitent un header `Authorization: Bearer {APP_SECRET}`.
+Reponse si non authentifie : `401 { success: false, error: "Non authentifie" }`
 
-## Format de réponse standard
+Exception : `GET /api/versions` n'a pas d'auth (stub).
+
+## Format de reponse standard
 
 ```json
-// Succès
+// Succes
 { "success": true, "data": { ... } }
 
 // Erreur
@@ -30,106 +32,110 @@ Réponse si non authentifié : `401 { success: false, error: "Non authentifié" 
 ### Articles
 
 #### `GET /api/articles`
-**Description :** Liste tous les articles du template maître, triés par `order_index`
+**Description :** Liste tous les articles du template maitre, tries par `order_index`
 **Auth :** Requise
 
-**Réponse 200 :**
+**Reponse 200 :**
 ```json
 {
   "success": true,
   "data": [
     {
       "id": 1,
-      "code": "art_1",
-      "title": "Article 1 — Objet du contrat",
-      "order_index": 10,
+      "code": "art_1_1",
+      "title": "Article 1.1 -- ...",
+      "orderIndex": 10,
       "scope": "common",
-      "content_common": "Le présent contrat...",
-      "content_classique": null,
-      "content_studio": null,
-      "content_20pct": null,
-      "content_particulier": null,
-      "content_societe": null,
-      "content_zones_cj": null,
-      "content_zones_r": null,
-      "content_sans_menage": null,
-      "is_page_break_before": false,
-      "keep_together": true,
-      "updated_at": "2026-04-07T10:00:00Z"
+      "contentCommon": "Le present contrat...",
+      "contentClassique": null,
+      "contentStudio": null,
+      "content20pct": null,
+      "contentParticulier": null,
+      "contentSociete": null,
+      "contentZonesCj": null,
+      "contentZonesR": null,
+      "contentSansMenage": null,
+      "isPageBreakBefore": false,
+      "keepTogether": true,
+      "updatedAt": "2026-04-07T10:00:00Z"
     }
   ]
 }
 ```
 
 #### `GET /api/articles/:id`
-**Description :** Récupère un article par son ID
+**Description :** Recupere un article par son ID
 **Auth :** Requise
 
-**Réponse 200 :**
+**Reponse 200 :**
 ```json
-{ "success": true, "data": { "id": 1, "code": "art_1", ... } }
+{ "success": true, "data": { "id": 1, "code": "art_1_1", ... } }
 ```
 
-**Réponse 404 :**
-```json
-{ "success": false, "error": "Article non trouvé" }
-```
+**Reponse 400 :** `{ "success": false, "error": "ID invalide" }`
+**Reponse 404 :** `{ "success": false, "error": "Article non trouve" }`
 
 #### `PUT /api/articles/:id`
-**Description :** Met à jour le contenu d'un article
+**Description :** Met a jour le contenu d'un article (mise a jour partielle)
 **Auth :** Requise
 **Body :**
 ```json
 {
   "title": "string (optionnel)",
-  "content_common": "string (optionnel)",
-  "content_classique": "string (optionnel)",
-  "content_studio": "string (optionnel)",
-  "content_20pct": "string (optionnel)",
-  "content_particulier": "string (optionnel)",
-  "content_societe": "string (optionnel)",
-  "content_zones_cj": "string (optionnel)",
-  "content_zones_r": "string (optionnel)",
-  "content_sans_menage": "string | null (optionnel)",
-  "is_page_break_before": "boolean (optionnel)",
-  "keep_together": "boolean (optionnel)"
+  "contentCommon": "string (optionnel)",
+  "contentClassique": "string (optionnel)",
+  "contentStudio": "string (optionnel)",
+  "content20pct": "string (optionnel)",
+  "contentParticulier": "string (optionnel)",
+  "contentSociete": "string (optionnel)",
+  "contentZonesCj": "string (optionnel)",
+  "contentZonesR": "string (optionnel)",
+  "contentSansMenage": "string | null (optionnel)",
+  "isPageBreakBefore": "boolean (optionnel)",
+  "keepTogether": "boolean (optionnel)"
 }
 ```
-> Seuls les champs envoyés sont mis à jour. Les autres restent inchangés.
+> Seuls les champs envoyes sont mis a jour (champs dans UPDATABLE_FIELDS). Les autres restent inchanges.
 
-**Réponse 200 :**
+**Reponse 200 :**
 ```json
-{ "success": true, "data": { "id": 1, "code": "art_1", ... , "updated_at": "2026-04-07T12:00:00Z" } }
+{ "success": true, "data": { "id": 1, "code": "art_1_1", ... , "updatedAt": "..." } }
 ```
+
+**Reponse 400 :** `{ "success": false, "error": "Aucun champ a mettre a jour" }`
+**Reponse 404 :** `{ "success": false, "error": "Article non trouve" }`
 
 ---
 
-### Génération
+### Generation
 
 #### `POST /api/generate`
-**Description :** Génère les 18 DOCX, les uploade dans Google Drive comme Google Docs, et exporte les PDFs de preview
+**Description :** Genere les 18 DOCX et les uploade dans Google Drive (DOCX natif, pas de conversion Google Doc)
 **Auth :** Requise
 **Body :** aucun
 
 **Traitement :**
-1. Récupère tous les articles (triés par order_index)
-2. Récupère les 18 contrats depuis la table `contracts`
-3. Pour chaque contrat : assemble → génère DOCX → uploade Drive → exporte PDF
-4. Retourne la liste des 18 avec statuts
+1. Recupere tous les articles (tries par order_index) et les 18 contrats
+2. Archive les dossiers "(en cours)" existants dans Drive (deplace vers archive, renomme)
+3. Cree 2 nouveaux dossiers dates dans Drive : un pour DOCX, un pour PDF
+4. Pour chaque contrat (x18) : assemble articles -> genere DOCX -> uploade DOCX natif dans Drive
+5. Met a jour `google_doc_id` dans la table contracts avec l'ID du fichier Drive
+6. Retourne la liste des 18 avec statuts + liens Drive
 
-**Réponse 200 :**
+**Reponse 200 :**
 ```json
 {
   "success": true,
   "data": {
-    "generated_at": "2026-04-07T12:00:00Z",
+    "generatedAt": "2026-04-07T12:00:00Z",
+    "archived": ["MODELES PROMESSES - MAJ DU 06/04/26"],
+    "docsFolderId": "...",
     "contracts": [
       {
         "code": "P1.P.CJ",
         "status": "ok",
-        "google_doc_url": "https://docs.google.com/document/d/...",
-        "pdf_url": "https://drive.google.com/file/d/.../view",
-        "article_count": 25
+        "googleDocUrl": "https://drive.google.com/file/d/.../view",
+        "articleCount": 25
       }
     ],
     "errors": []
@@ -137,54 +143,76 @@ Réponse si non authentifié : `401 { success: false, error: "Non authentifié" 
 }
 ```
 
-**Réponse 500 (erreur partielle) :**
-```json
-{
-  "success": true,
-  "data": {
-    "contracts": [...],
-    "errors": [
-      { "code": "P3.S.R", "error": "Google Drive upload failed: quota exceeded" }
-    ]
-  }
-}
-```
+> Note : Pas de PDF a cette etape. Les PDF sont generes par `/api/push-docusign`.
 
 ---
 
 ### Push DocuSign
 
 #### `POST /api/push-docusign`
-**Description :** Archive les docs actuels dans Drive, puis met à jour les 18 templates DocuSign avec les nouveaux documents
+**Description :** Telecharge les DOCX depuis Drive, les convertit en PDF via LibreOffice headless, uploade les PDF dans Drive, et pousse dans DocuSign (creation ou mise a jour templates + PowerForms)
 **Auth :** Requise
-**Body :**
-```json
-{
-  "description": "string (requis) — ex: MAJ articles 2.4.1, 2.8, 3.1"
-}
-```
+**Body :** `{}` (objet vide)
 
 **Traitement :**
-1. Crée un dossier d'archive daté dans Drive
-2. Copie les 18 Google Docs actuels dans le dossier d'archive
-3. Pour chaque contrat : uploade le nouveau document dans le template DocuSign
-4. Enregistre la version dans la table `versions`
+1. Recupere les 18 contrats et obtient un token DocuSign JWT
+2. Trouve le dossier PDF "(en cours)" dans Drive
+3. Pour chaque contrat (x18) :
+   a. Telecharge le DOCX depuis Drive (`google_doc_id`)
+   b. Convertit en PDF via LibreOffice headless (`convertDocxToPdf`)
+   c. Uploade le PDF dans le dossier PDF de Drive
+   d. Si pas de `docusign_template_id` : cree le template DocuSign + cree le PowerForm, met a jour la DB
+   e. Si `docusign_template_id` existe : remplace le document dans le template + reactive le PowerForm
+4. Insere une version dans la table `versions` (numero incremental)
 
-**Réponse 200 :**
+**Reponse 200 :**
 ```json
 {
   "success": true,
   "data": {
-    "version_number": 14,
-    "description": "MAJ articles 2.4.1, 2.8, 3.1",
-    "archive_folder_url": "https://drive.google.com/drive/folders/...",
+    "version_number": 1,
     "pushed_at": "2026-04-07T14:00:00Z",
     "results": [
-      { "code": "P1.P.CJ", "status": "ok", "template_id": "..." },
-      { "code": "P1.P.R", "status": "ok", "template_id": "..." }
+      { "code": "P1.P.CJ", "status": "ok", "powerform_url": "https://powerforms.docusign.net/...", "is_new": true },
+      { "code": "P1.P.R", "status": "ok", "powerform_url": "https://powerforms.docusign.net/...", "is_new": false }
     ],
     "errors": []
   }
+}
+```
+
+**Detail template DocuSign :** Chaque template contient :
+- Un signer "PROPRIETAIRE" avec text tabs (anchor tabs : /nm1/, /ad1/, /dn1/, /py1/, /tl1/, /ml1/, /lg1/, /lg2/, /cm1/, /vi1/, /sr1/ pour .S)
+- Un signHere tab ancre sur /sn1/
+- Des initialHere tabs (paraphes) sur chaque page, positionnes par coordonnees fixes
+- Un carbonCopy "LETAHOST LLC" pour recevoir une copie
+- Un tab "bon_pour_accord" et un tab "date_signature" ancres dans le texte
+
+---
+
+### Contrats (referentiel)
+
+#### `GET /api/contracts`
+**Description :** Liste les 18 variantes avec leur mapping DocuSign et Google Drive
+**Auth :** Requise
+
+**Reponse 200 :**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": 1,
+      "code": "P1.P.CJ",
+      "commissionType": "classique",
+      "statutType": "particulier",
+      "menageType": "zones_cj",
+      "googleDocId": "...",
+      "docusignTemplateName": "CE - P1.P.CJ",
+      "docusignPowerformId": "...",
+      "docusignTemplateId": "..."
+    }
+  ]
 }
 ```
 
@@ -193,55 +221,39 @@ Réponse si non authentifié : `401 { success: false, error: "Non authentifié" 
 ### Versions (historique)
 
 #### `GET /api/versions`
-**Description :** Liste l'historique des pushs, du plus récent au plus ancien
-**Auth :** Requise
+**Description :** Stub -- retourne un tableau vide (non implemente)
+**Auth :** Aucune (pas d'appel a authenticate)
 
-**Réponse 200 :**
+**Reponse 200 :**
 ```json
-{
-  "success": true,
-  "data": [
-    {
-      "id": 1,
-      "version_number": 14,
-      "description": "MAJ articles 2.4.1, 2.8, 3.1",
-      "archive_drive_folder_id": "...",
-      "archive_folder_url": "https://drive.google.com/drive/folders/...",
-      "pushed_at": "2026-04-07T14:00:00Z",
-      "pushed_by": "loic"
-    }
-  ]
-}
+{ "success": true, "data": [] }
 ```
+
+> Note : La creation des versions est faite par `/api/push-docusign`. La lecture est un stub.
 
 ---
 
-### Contrats (référentiel)
+### Routes temporaires (dev/test)
 
-#### `GET /api/contracts`
-**Description :** Liste les 18 variantes avec leur mapping DocuSign et Google Drive
+#### `POST /api/generate-test`
+**Description :** Genere un seul DOCX pour un code contrat donne et le retourne en telechargement direct
 **Auth :** Requise
-
-**Réponse 200 :**
+**Body :**
 ```json
-{
-  "success": true,
-  "data": [
-    {
-      "id": 1,
-      "code": "P1.P.CJ",
-      "commission_type": "classique",
-      "statut_type": "particulier",
-      "menage_type": "zones_cj",
-      "google_doc_id": "1hyOICOEfp5Y98_...",
-      "docusign_template_name": "LETAHOST LLC - Promesse - PRINCIPALE - PARTICULIER - Zones Classiques et Jaunes - Février 2026",
-      "docusign_powerform_id": "e2bac1a9-0519-4c76-a377-f93022415119",
-      "docusign_template_id": "..."
-    }
-  ]
-}
+{ "code": "P1.P.CJ" }
 ```
+
+**Reponse 200 :** Fichier DOCX binaire (`Content-Type: application/vnd.openxmlformats-officedocument.wordprocessingml.document`)
+**Reponse 400 :** `{ "success": false, "error": "Le champ 'code' est requis (ex: P1.P.CJ)" }`
+**Reponse 404 :** `{ "success": false, "error": "Contrat 'XXX' non trouve" }`
+
+#### `POST /api/generate-test-all`
+**Description :** Genere les 18 DOCX et les retourne dans un fichier ZIP
+**Auth :** Requise
+**Body :** aucun
+
+**Reponse 200 :** Fichier ZIP binaire (`Content-Type: application/zip`, filename: `contrats-YYYY-MM-DD.zip`)
 
 ---
 
-> **Dernière mise à jour :** 2026-04-07
+> **Derniere mise a jour :** 2026-04-09

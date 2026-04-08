@@ -1,35 +1,35 @@
-# Modèle de données — Contract Engine
+# Modele de donnees -- Contract Engine
 
-> Schéma complet de la base de données. Mettre à jour à CHAQUE migration.
+> Schema complet de la base de donnees. Mettre a jour a CHAQUE migration.
 
 ## Vue d'ensemble des relations
 
 ```
-articles (template maître)
-  │
-  │  Pas de FK directe — la relation est logique :
-  │  contract-assembler.ts sélectionne le bon contenu
-  │  de chaque article selon le type du contrat
-  │
+articles (template maitre — 41 articles)
+  |
+  |  Pas de FK directe — la relation est logique :
+  |  contract-assembler.ts selectionne le bon contenu
+  |  de chaque article selon le type du contrat
+  |
 contracts (les 18 variantes)
-  │
-  │  Pas de FK vers articles — le mapping est par code/type
-  │
+  |
+  |  Pas de FK vers articles — le mapping est par code/type
+  |
 versions (historique des pushs)
-     │
-     └── Indépendante — log de chaque push DocuSign
+     |
+     +-- Independante — log de chaque push DocuSign
 ```
 
 ## Tables
 
 ### `articles`
-Stocke le contenu de chaque article/section du template maître. Le scope détermine quel champ `content_*` est utilisé.
+Stocke le contenu de chaque article/section du template maitre. Le scope determine quel champ `content_*` est utilise. Actuellement 41 articles.
 
 | Colonne | Type | Contraintes | Description |
 |---------|------|-------------|-------------|
 | `id` | SERIAL | PK | Identifiant unique |
-| `code` | VARCHAR(50) | NOT NULL | Code unique de l'article. Ex: `art_1`, `art_2_4_1`, `en_tete`, `bloc_signature` |
-| `title` | VARCHAR(255) | NOT NULL | Titre affiché. Ex: `Article 1 — Objet du contrat` |
+| `code` | VARCHAR(50) | NOT NULL, UNIQUE | Code unique de l'article. Ex: `art_1_1`, `art_2_4_1_intro`, `en_tete_titre`, `bloc_signature` |
+| `title` | VARCHAR(255) | NOT NULL | Titre affiche. Ex: `Article 1.1 -- Objet du contrat` |
 | `order_index` | INTEGER | NOT NULL | Ordre d'affichage dans le contrat |
 | `scope` | VARCHAR(20) | NOT NULL, DEFAULT 'common' | Axe de variation : `common`, `commission`, `statut`, `menage` |
 | `content_common` | TEXT | | Contenu si scope = `common` |
@@ -37,22 +37,25 @@ Stocke le contenu de chaque article/section du template maître. Le scope déter
 | `content_studio` | TEXT | | Variante Studio (P3/P4) si scope = `commission` |
 | `content_20pct` | TEXT | | Variante 20% (P5/P6) si scope = `commission` |
 | `content_particulier` | TEXT | | Variante Particulier (.P) si scope = `statut` |
-| `content_societe` | TEXT | | Variante Société (.S) si scope = `statut` |
+| `content_societe` | TEXT | | Variante Societe (.S) si scope = `statut` |
 | `content_zones_cj` | TEXT | | Variante Zones Classiques & Jaunes (.CJ) si scope = `menage` |
 | `content_zones_r` | TEXT | | Variante Zones Rouges (.R) si scope = `menage` |
-| `content_sans_menage` | TEXT | | Variante Sans ménage (P2/P4/P6). NULL = section absente de cette variante |
-| `is_page_break_before` | BOOLEAN | DEFAULT FALSE | Saut de page forcé avant cet article |
+| `content_sans_menage` | TEXT | | Variante Sans menage (P2/P4/P6). NULL = section absente de cette variante |
+| `is_page_break_before` | BOOLEAN | DEFAULT FALSE | Saut de page force avant cet article |
 | `keep_together` | BOOLEAN | DEFAULT TRUE | Ne jamais couper cet article entre 2 pages |
-| `updated_at` | TIMESTAMP | DEFAULT NOW() | Dernière modification |
+| `updated_at` | TIMESTAMP | DEFAULT NOW() | Derniere modification (auto-update par Prisma @updatedAt) |
 
 **Logique de scope :**
-- `common` → même contenu pour les 18 → lire `content_common`
-- `commission` → varie selon le type de commission → lire `content_classique` OU `content_studio` OU `content_20pct`
-- `statut` → varie selon le statut juridique → lire `content_particulier` OU `content_societe`
-- `menage` → varie selon le type de ménage → lire `content_zones_cj` OU `content_zones_r` OU `content_sans_menage`
+- `common` -> meme contenu pour les 18 -> lire `content_common`
+- `commission` -> varie selon le type de commission -> lire `content_classique` OU `content_studio` OU `content_20pct`
+- `statut` -> varie selon le statut juridique -> lire `content_particulier` OU `content_societe`
+- `menage` -> varie selon le type de menage -> lire `content_zones_cj` OU `content_zones_r` OU `content_sans_menage`
+
+**Les 41 articles (par order_index) :**
+`en_tete_titre`, `en_tete_proprietaire`, `en_tete_prestataire`, `preambule`, `art_1_1`, `art_1_2`, `art_1_3`, `art_1_4`, `art_2_1`, `art_2_2_intro`, `art_2_2_1_menage`, `art_2_2_2_linge`, `art_2_2_decoration`, `art_2_2_photos`, `art_2_2_annonces`, `art_2_2_accueil`, `art_2_2_communication`, `art_2_2_revenue`, `art_2_3`, `art_2_4_1_intro`, `art_2_4_1_taux`, `art_2_4_2_frais_menage`, `art_2_4_deplacements`, `art_2_4_frais_divers`, `art_2_5`, `art_2_6`, `art_2_7`, `art_2_8`, `art_2_9`, `art_2_10`, `art_3_1`, `art_3_2`, `art_4`, `art_5`, `art_6`, `art_7`, `art_8`, `art_9`, `bloc_signature`, `annexe_1`, `annexe_2`
 
 **Index :**
-- `idx_articles_code` UNIQUE sur `code`
+- `code` UNIQUE (implicite via contrainte Prisma @unique)
 - `idx_articles_order` sur `order_index`
 
 ---
@@ -67,15 +70,15 @@ Les 18 variantes et leur mapping vers Google Drive et DocuSign.
 | `commission_type` | VARCHAR(20) | NOT NULL | `classique`, `studio`, `20pct` |
 | `statut_type` | VARCHAR(20) | NOT NULL | `particulier`, `societe` |
 | `menage_type` | VARCHAR(20) | NOT NULL | `zones_cj`, `zones_r`, `sans_menage` |
-| `google_doc_id` | VARCHAR(100) | | ID du Google Doc généré (mis à jour après chaque génération) |
-| `docusign_template_name` | VARCHAR(255) | | Nom du template DocuSign côté front |
-| `docusign_powerform_id` | VARCHAR(100) | | ID du PowerForm (fixe, ne change jamais) |
-| `docusign_template_id` | VARCHAR(100) | | ID du template DocuSign (récupéré via API) |
+| `google_doc_id` | VARCHAR(100) | | ID du fichier DOCX dans Drive (mis a jour apres chaque generation) |
+| `docusign_template_name` | VARCHAR(255) | | Nom du template DocuSign (format: `CE - P1.P.CJ`) |
+| `docusign_powerform_id` | VARCHAR(100) | | ID du PowerForm (cree lors du premier push) |
+| `docusign_template_id` | VARCHAR(100) | | ID du template DocuSign (cree lors du premier push) |
 
 **Index :**
-- `idx_contracts_code` UNIQUE sur `code` (implicite via contrainte UNIQUE)
+- `code` UNIQUE (implicite via contrainte Prisma @unique)
 
-**Données initiales :** Les 18 lignes sont seedées au setup avec les Google Doc IDs actuels et les PowerForm IDs. Les `docusign_template_id` sont récupérés via le script `map-docusign-templates.ts`.
+**Donnees initiales :** Les 18 lignes sont seedees au setup via `prisma/seed.ts` avec les codes et types. Les `docusign_template_id` et `docusign_powerform_id` sont remplis lors du premier push DocuSign.
 
 ---
 
@@ -85,11 +88,11 @@ Historique de chaque push vers DocuSign.
 | Colonne | Type | Contraintes | Description |
 |---------|------|-------------|-------------|
 | `id` | SERIAL | PK | Identifiant unique |
-| `version_number` | INTEGER | NOT NULL | Numéro incrémental |
-| `description` | TEXT | | Description du changement. Ex: `MAJ articles 2.4.1, 2.8, 3.1` |
-| `archive_drive_folder_id` | VARCHAR(100) | | ID du dossier d'archive dans Google Drive |
+| `version_number` | INTEGER | NOT NULL | Numero incremental |
+| `description` | TEXT | | Description du changement (optionnel, actuellement non rempli par le code) |
+| `archive_drive_folder_id` | VARCHAR(100) | | ID du dossier d'archive dans Google Drive (optionnel, actuellement non rempli) |
 | `pushed_at` | TIMESTAMP | DEFAULT NOW() | Date du push |
-| `pushed_by` | VARCHAR(100) | | Qui a poussé (identifiant simple) |
+| `pushed_by` | VARCHAR(100) | | Qui a pousse (valeur fixe: `contract-engine`) |
 
 **Index :**
 - `idx_versions_number` sur `version_number` DESC
@@ -153,13 +156,13 @@ model Version {
 
 ## Migrations
 
-Les migrations sont gérées par Prisma (`prisma/migrations/`).
-Ne JAMAIS modifier une migration existante — créer une nouvelle migration pour corriger.
+Les migrations sont gerees par Prisma (`prisma/migrations/`).
+Ne JAMAIS modifier une migration existante -- creer une nouvelle migration pour corriger.
 
 | Migration | Date | Description |
 |-----------|------|-------------|
-| `001_init` | 2026-04-07 | Tables initiales : articles, contracts, versions |
+| `20260407135409_init` | 2026-04-07 | Tables initiales : articles, contracts, versions |
 
 ---
 
-> **Dernière mise à jour :** 2026-04-07
+> **Derniere mise a jour :** 2026-04-09
