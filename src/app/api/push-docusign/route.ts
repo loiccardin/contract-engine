@@ -3,7 +3,8 @@ import { prisma } from "@/lib/db";
 import { authenticate } from "@/lib/auth";
 import { convertDocxToPdf } from "@/lib/pdf-converter";
 import { downloadFile, uploadPdf } from "@/lib/google-drive";
-import { getAccessToken } from "@/lib/docusign";
+import { getAccessToken, reactivatePowerForm } from "@/lib/docusign";
+import { google } from "googleapis";
 
 const BASE_URL = process.env.DOCUSIGN_BASE_URL!;
 const ACCOUNT_ID = process.env.DOCUSIGN_ACCOUNT_ID!;
@@ -87,9 +88,26 @@ export async function POST(request: NextRequest) {
     const contracts = await prisma.contract.findMany({ orderBy: { id: "asc" } });
     const token = await getAccessToken();
 
-    // Find the latest Drive output folder for PDF uploads
-    // We'll upload PDFs alongside the DOCX in the same root folder
+    // Find the PDF folder in Drive (created by /api/generate, name contains "PDF" and "(en cours)")
     const rootFolderId = process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID!;
+    let pdfFolderId = rootFolderId; // fallback to root
+    try {
+      const keyJson = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
+      if (keyJson) {
+        const key = JSON.parse(keyJson);
+        const auth = new google.auth.GoogleAuth({ credentials: key, scopes: ["https://www.googleapis.com/auth/drive"] });
+        const drive = google.drive({ version: "v3", auth });
+        const folderRes = await drive.files.list({
+          q: `'${rootFolderId}' in parents and mimeType = 'application/vnd.google-apps.folder' and name contains 'PDF' and name contains '(en cours)' and trashed = false`,
+          fields: "files(id, name)",
+          supportsAllDrives: true,
+          includeItemsFromAllDrives: true,
+        });
+        if (folderRes.data.files?.length) {
+          pdfFolderId = folderRes.data.files[0].id!;
+        }
+      }
+    } catch { /* use root as fallback */ }
 
     const results: { code: string; status: string; powerform_url?: string; is_new?: boolean }[] = [];
     const errors: { code: string; error: string }[] = [];
@@ -108,8 +126,8 @@ export async function POST(request: NextRequest) {
         const pageCount = countPdfPages(pdfBuffer);
         const pdfBase64 = pdfBuffer.toString("base64");
 
-        // 3. Upload PDF to Drive (in root folder for now)
-        await uploadPdf(rootFolderId, `CE - ${contract.code}`, pdfBuffer);
+        // 3. Upload PDF to Drive (in the PDF folder created by /api/generate)
+        await uploadPdf(pdfFolderId, `CE - ${contract.code}`, pdfBuffer);
 
         if (!contract.docusignTemplateId) {
           // A) First time — create template + PowerForm
@@ -180,6 +198,11 @@ export async function POST(request: NextRequest) {
           if (!updateRes.ok) {
             const err = await updateRes.text();
             throw new Error(`Update template (${updateRes.status}): ${err.substring(0, 200)}`);
+          }
+
+          // Reactivate PowerForm (gets deactivated after template document update)
+          if (contract.docusignPowerformId) {
+            await reactivatePowerForm(contract.docusignPowerformId);
           }
 
           const powerFormUrl = contract.docusignPowerformId

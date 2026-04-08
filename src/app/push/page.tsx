@@ -74,22 +74,47 @@ export default function PushPage() {
             </div>
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-3">
             {data.results.map(r => (
-              <div key={r.code} className="flex items-center justify-between bg-white rounded-xl border border-gray-200 px-5 py-3.5 shadow-sm hover:shadow-md transition-shadow">
-                <div className="flex items-center gap-3">
-                  <span className={`w-2 h-2 rounded-full ${r.status === "ok" ? "bg-emerald-500" : "bg-red-500"}`} />
-                  <span className="font-medium text-gray-800">{r.code}</span>
-                  {r.status === "ok" && r.is_new && (
-                    <span className="text-xs font-medium px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">Nouveau</span>
-                  )}
-                  {r.status === "ok" && r.is_new === false && (
-                    <span className="text-xs font-medium px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">Mis a jour</span>
+              <div key={r.code} className="bg-white rounded-xl border border-gray-200 px-5 py-4 shadow-sm">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-3">
+                    <span className={`w-2 h-2 rounded-full ${r.status === "ok" ? "bg-emerald-500" : "bg-red-500"}`} />
+                    <span className="font-semibold text-gray-800">{r.code}</span>
+                    {r.status === "ok" && r.is_new && (
+                      <span className="text-xs font-medium px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">Nouveau</span>
+                    )}
+                    {r.status === "ok" && r.is_new === false && (
+                      <span className="text-xs font-medium px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">Mis à jour</span>
+                    )}
+                  </div>
+                  {r.powerform_url && (
+                    <a href={r.powerform_url} target="_blank" rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white text-xs font-medium rounded-lg hover:bg-indigo-700 transition-colors">
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                      </svg>
+                      Ouvrir
+                    </a>
                   )}
                 </div>
                 {r.powerform_url && (
-                  <a href={r.powerform_url} target="_blank" rel="noopener noreferrer"
-                    className="text-sm text-indigo-600 hover:text-indigo-700 font-medium hover:underline">PowerForm</a>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      readOnly
+                      value={r.powerform_url}
+                      className="flex-1 px-3 py-1.5 text-xs font-mono text-gray-600 bg-gray-50 border border-gray-200 rounded-lg select-all"
+                      onClick={(e) => (e.target as HTMLInputElement).select()}
+                    />
+                    <button
+                      onClick={() => { navigator.clipboard.writeText(r.powerform_url!); }}
+                      className="px-2.5 py-1.5 text-xs text-gray-500 hover:text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                      title="Copier le lien"
+                    >
+                      Copier
+                    </button>
+                  </div>
                 )}
               </div>
             ))}

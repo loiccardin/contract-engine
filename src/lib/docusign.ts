@@ -227,3 +227,21 @@ export async function createPowerForm(
     powerFormUrl: data.powerFormUrl || `https://eu.docusign.net/Member/PowerFormSigning.aspx?PowerFormId=${data.powerFormId}`,
   };
 }
+
+// ─── Reactivate PowerForm after template update ───
+
+export async function reactivatePowerForm(powerFormId: string): Promise<void> {
+  const { baseUrl, accountId } = getConfig();
+  const token = await getAccessToken();
+
+  const res = await fetch(`${baseUrl}/v2.1/accounts/${accountId}/powerforms/${powerFormId}`, {
+    method: "PUT",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ status: "active" }),
+  });
+
+  if (!res.ok) {
+    const error = await res.text();
+    console.error(`Réactivation PowerForm ${powerFormId} échouée (${res.status}): ${error}`);
+  }
+}
