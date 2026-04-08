@@ -120,6 +120,7 @@ function renderWithItalics(text: string, fontSize: number, bold: boolean, underl
 interface ParseOptions {
   keepTogether: boolean;
   isOwnerFields?: boolean;
+  pageBreakBefore?: boolean;  // apply pageBreakBefore on the first paragraph
 }
 
 function parseContent(content: string, articleCode: string, opts: ParseOptions): Paragraph[] {
@@ -128,8 +129,8 @@ function parseContent(content: string, articleCode: string, opts: ParseOptions):
   const isOwner = articleCode === "en_tete_proprietaire";
   const lineSpacing = (opts.isOwnerFields || isOwner) ? SPACING.lineFieldsOwner : SPACING.lineBody;
 
-  // Track if last emitted paragraph was a title (keepNext) to skip empty lines after it
   let lastWasTitle = false;
+  let needsPageBreakOnNext = opts.pageBreakBefore || false;
 
   for (let i = 0; i < lines.length; i++) {
     const trimmed = lines[i].trim();
@@ -152,9 +153,11 @@ function parseContent(content: string, articleCode: string, opts: ParseOptions):
           alignment: AlignmentType.JUSTIFIED,
           spacing: { before: 240, after: 60, line: lineSpacing },
           keepNext: true, keepLines: true,
+          pageBreakBefore: needsPageBreakOnNext || undefined,
           children: [new TextRun({ text: trimmed, font: FONTS.title, size: FONT_SIZES.articleTitle, bold: true })],
         })
       );
+      needsPageBreakOnNext = false;
       lastWasTitle = true;
       continue;
     }
@@ -164,29 +167,31 @@ function parseContent(content: string, articleCode: string, opts: ParseOptions):
       const { number, rest, isTitleOnly } = splitSubsectionLine(trimmed);
 
       if (isTitleOnly) {
-        // Pure title: all bold, keepNext, skip empty lines after
         paragraphs.push(
           new Paragraph({
             alignment: AlignmentType.JUSTIFIED,
             spacing: { before: 240, after: 60, line: lineSpacing },
             keepNext: true, keepLines: true,
+            pageBreakBefore: needsPageBreakOnNext || undefined,
             children: [new TextRun({ text: trimmed, font: FONTS.title, size: FONT_SIZES.articleTitle, bold: true })],
           })
         );
+        needsPageBreakOnNext = false;
         lastWasTitle = true;
       } else {
-        // Number + paragraph text: 2 runs
         paragraphs.push(
           new Paragraph({
             alignment: AlignmentType.JUSTIFIED,
             spacing: { before: 240, after: SPACING.afterParagraph, line: lineSpacing },
             keepLines: opts.keepTogether,
+            pageBreakBefore: needsPageBreakOnNext || undefined,
             children: [
               new TextRun({ text: number, font: FONTS.title, size: FONT_SIZES.articleTitle, bold: true }),
               new TextRun({ text: rest, font: FONTS.body, size: FONT_SIZES.body }),
             ],
           })
         );
+        needsPageBreakOnNext = false;
       }
       continue;
     }
@@ -197,7 +202,8 @@ function parseContent(content: string, articleCode: string, opts: ParseOptions):
         new Paragraph({
           alignment: AlignmentType.JUSTIFIED,
           spacing: { after: SPACING.afterBullet, line: lineSpacing },
-          indent: { left: 720, hanging: 360 },
+          indent: { left: 1080, hanging: 360 },
+          pageBreakBefore: needsPageBreakOnNext || undefined,
           keepLines: opts.keepTogether,
           children: [
             new TextRun({ text: "-            ", font: FONTS.body, size: FONT_SIZES.body }),
@@ -205,6 +211,7 @@ function parseContent(content: string, articleCode: string, opts: ParseOptions):
           ],
         })
       );
+      needsPageBreakOnNext = false;
       continue;
     }
 
@@ -254,9 +261,8 @@ function parseContent(content: string, articleCode: string, opts: ParseOptions):
       trimmed === "ENTRE LES SOUSSIGNÉS" || trimmed === "ET" ||
       trimmed.startsWith("IL EST PRÉALABLEMENT RAPPELÉ") || trimmed.startsWith("CECI EXPOSÉ");
 
-    const isBigTitle = trimmed === "PROMESSE DE CONTRAT" || trimmed === "DE PRESTATION DE SERVICES";
-    const isSmallCentered = trimmed.startsWith("CONCIERGERIE");
-    const isCentered = isBigTitle || isSmallCentered;
+    const isBigTitle = trimmed === "PROMESSE DE CONTRAT" || trimmed === "DE PRESTATION DE SERVICES" || trimmed.startsWith("CONCIERGERIE");
+    const isCentered = isBigTitle;
 
     let fontSize: number = FONT_SIZES.body;
     if (isBigTitle) fontSize = FONT_SIZES.docTitle;
@@ -274,9 +280,11 @@ function parseContent(content: string, articleCode: string, opts: ParseOptions):
         alignment,
         spacing: { after: SPACING.afterParagraph, line: lineSpacing },
         keepLines: opts.keepTogether,
+        pageBreakBefore: needsPageBreakOnNext || undefined,
         children,
       })
     );
+    needsPageBreakOnNext = false;
   }
 
   return paragraphs;
@@ -319,8 +327,8 @@ function buildCommentBox(): Paragraph[] {
   ];
 }
 
-function buildSignatureBlock(content: string, tamponImage: Buffer): Paragraph[] {
-  const paras = parseContent(content, "bloc_signature", { keepTogether: true });
+function buildSignatureBlock(content: string, tamponImage: Buffer, pageBreak: boolean = false): Paragraph[] {
+  const paras = parseContent(content, "bloc_signature", { keepTogether: true, pageBreakBefore: pageBreak });
   // keepNext on ALL paragraphs so the block stays together on one page
   for (const p of paras) {
     (p as unknown as { keepNext: boolean }).keepNext = true;
@@ -338,7 +346,7 @@ function buildSignatureBlock(content: string, tamponImage: Buffer): Paragraph[] 
   return paras;
 }
 
-function buildAnnexeTable(content: string): Paragraph[] {
+function buildAnnexeTable(content: string, pageBreak: boolean = false): Paragraph[] {
   const paragraphs: Paragraph[] = [];
 
   paragraphs.push(
@@ -346,6 +354,7 @@ function buildAnnexeTable(content: string): Paragraph[] {
       alignment: AlignmentType.CENTER,
       spacing: { before: 200, after: 200 },
       keepNext: true, keepLines: true,
+      pageBreakBefore: pageBreak || undefined,
       children: [new TextRun({ text: "ANNEXE 2 - GRILLE ESTIMATIVE MÉNAGE", font: FONTS.title, size: FONT_SIZES.articleTitle, bold: true, underline: {} })],
     })
   );
@@ -438,31 +447,23 @@ export async function generateDocx(
       article.code === "annexe_1" ||
       article.code === "annexe_2";
 
-    if (needsPageBreak && children.length > 0) {
-      children.push(new Paragraph({ pageBreakBefore: true, children: [] }));
-    }
-
     if (article.code === "art_9") {
+      // Comment box: pageBreak via dedicated paragraph if needed
+      if (needsPageBreak && children.length > 0) {
+        children.push(new Paragraph({ pageBreakBefore: true, spacing: { after: 0, line: 240 }, children: [new TextRun({ text: "", size: 2 })] }));
+      }
       children.push(...buildCommentBox());
-      continue;
+    } else if (article.code === "bloc_signature") {
+      children.push(...buildSignatureBlock(article.content, tamponImage, needsPageBreak));
+    } else if (article.code === "annexe_2") {
+      children.push(...buildAnnexeTable(article.content, needsPageBreak));
+    } else {
+      children.push(...parseContent(article.content, article.code, {
+        keepTogether: article.keepTogether,
+        isOwnerFields: article.code === "en_tete_proprietaire",
+        pageBreakBefore: needsPageBreak && children.length > 0,
+      }));
     }
-
-    if (article.code === "bloc_signature") {
-      children.push(...buildSignatureBlock(article.content, tamponImage));
-      continue;
-    }
-
-    if (article.code === "annexe_2") {
-      children.push(...buildAnnexeTable(article.content));
-      continue;
-    }
-
-    const paras = parseContent(article.content, article.code, {
-      keepTogether: article.keepTogether,
-      isOwnerFields: article.code === "en_tete_proprietaire",
-    });
-
-    children.push(...paras);
   }
 
   const doc = new Document({
