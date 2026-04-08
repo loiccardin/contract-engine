@@ -107,17 +107,21 @@ export async function createTemplateWithDocument(
 
   const documentBase64 = pdfOrDocxBuffer.toString("base64");
 
-  const textTabs: { anchorString: string; anchorXOffset: string; anchorYOffset: string; anchorUnits: string; tabLabel: string; required: string; width: number; height: number }[] = [
-    { anchorString: "/nm1/", anchorXOffset: "0", anchorYOffset: "0", anchorUnits: "pixels", tabLabel: "nom_complet", required: "true", width: 200, height: 15 },
+  // Text tabs — sized and positioned per v2 spec
+  const textTabs: Record<string, unknown>[] = [
+    { anchorString: "/nm1/", anchorXOffset: "0", anchorYOffset: "0", anchorUnits: "pixels", tabLabel: "nom_complet", required: "true", width: 300, height: 15 },
+    { anchorString: "est envisagé à :", anchorXOffset: "5", anchorYOffset: "-2", anchorUnits: "pixels", tabLabel: "siege_social", required: "true", width: 350, height: 15 },
     { anchorString: "/dn1/", anchorXOffset: "0", anchorYOffset: "0", anchorUnits: "pixels", tabLabel: "date_naissance", required: "true", width: 150, height: 15 },
-    { anchorString: "/ad1/", anchorXOffset: "0", anchorYOffset: "0", anchorUnits: "pixels", tabLabel: "adresse", required: "true", width: 250, height: 15 },
-    { anchorString: "/tl1/", anchorXOffset: "0", anchorYOffset: "0", anchorUnits: "pixels", tabLabel: "telephone", required: "true", width: 150, height: 15 },
-    { anchorString: "/ml1/", anchorXOffset: "0", anchorYOffset: "0", anchorUnits: "pixels", tabLabel: "email", required: "true", width: 200, height: 15 },
-    { anchorString: "/lg1/", anchorXOffset: "0", anchorYOffset: "0", anchorUnits: "pixels", tabLabel: "adresse_logement", required: "true", width: 250, height: 15 },
+    { anchorString: "/ad1/", anchorXOffset: "0", anchorYOffset: "0", anchorUnits: "pixels", tabLabel: "adresse", required: "true", width: 350, height: 15 },
+    { anchorString: "Pays :", anchorXOffset: "30", anchorYOffset: "-2", anchorUnits: "pixels", tabLabel: "pays", required: "true", width: 200, height: 15 },
+    { anchorString: "/tl1/", anchorXOffset: "0", anchorYOffset: "0", anchorUnits: "pixels", tabLabel: "telephone", required: "true", width: 200, height: 15 },
+    { anchorString: "/ml1/", anchorXOffset: "0", anchorYOffset: "0", anchorUnits: "pixels", tabLabel: "email", required: "true", width: 250, height: 15 },
+    { anchorString: "/lg1/", anchorXOffset: "0", anchorYOffset: "20", anchorUnits: "pixels", tabLabel: "adresse_logement", required: "true", width: 450, height: 80 },
     { anchorString: "/vi1/", anchorXOffset: "0", anchorYOffset: "0", anchorUnits: "pixels", tabLabel: "ville", required: "true", width: 150, height: 15 },
-    { anchorString: "/cm1/", anchorXOffset: "0", anchorYOffset: "0", anchorUnits: "pixels", tabLabel: "commentaires", required: "false", width: 400, height: 80 },
+    { anchorString: "/cm1/", anchorXOffset: "10", anchorYOffset: "5", anchorUnits: "pixels", tabLabel: "commentaires", required: "false", width: 350, height: 60 },
   ];
 
+  // Add SIREN tab for société variants (.S)
   if (contractCode.includes(".S")) {
     textTabs.push({
       anchorString: "/sr1/", anchorXOffset: "0", anchorYOffset: "0", anchorUnits: "pixels",
@@ -135,18 +139,19 @@ export async function createTemplateWithDocument(
         roleName: "PROPRIETAIRE",
         recipientId: "1",
         routingOrder: "1",
+        requireIdLookup: "false",
         tabs: {
-          signHereTabs: [{ anchorString: "/sn1/", anchorXOffset: "0", anchorYOffset: "0", anchorUnits: "pixels" }],
+          signHereTabs: [{ anchorString: "/sn1/", anchorXOffset: "0", anchorYOffset: "30", anchorUnits: "pixels" }],
           dateSignedTabs: [{ anchorString: "/dt1/", anchorXOffset: "0", anchorYOffset: "0", anchorUnits: "pixels" }],
           textTabs,
-          initialHereTabs: [{ anchorString: "/ini1/", anchorXOffset: "0", anchorYOffset: "0", anchorUnits: "pixels" }],
+          initialHereTabs: [{ anchorString: "/ini1/", anchorXOffset: "100", anchorYOffset: "0", anchorUnits: "pixels" }],
         },
       }],
       carbonCopies: [{
         roleName: "LETAHOST",
         recipientId: "2",
         routingOrder: "2",
-        email: "conciergerie@invest-malin.com",
+        email: "direction@conciergerie-letahost.com",
         name: "LETAHOST LLC",
       }],
     },
@@ -212,7 +217,7 @@ export async function createPowerForm(
     body: JSON.stringify({
       name: `CE - ${contractCode}`,
       templateId,
-      signingMode: "email",
+      signingMode: "direct",
       signerRoles: [{ roleName: "PROPRIETAIRE", name: "", email: "" }],
     }),
   });
