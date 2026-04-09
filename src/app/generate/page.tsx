@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import StepIndicator from "@/components/StepIndicator";
 import LogoutButton from "@/components/LogoutButton";
+import { useAuth } from "@/components/AuthProvider";
 
 interface ContractResult {
   code: string;
@@ -14,6 +15,7 @@ interface ContractResult {
 
 export default function GeneratePage() {
   const router = useRouter();
+  const { apiCall } = useAuth();
   const [token, setToken] = useState("");
   const [step, setStep] = useState<"idle" | "generating" | "review" | "pushing">("idle");
   const [contracts, setContracts] = useState<ContractResult[]>([]);
@@ -30,7 +32,7 @@ export default function GeneratePage() {
     setStep("generating");
     setError(null);
     try {
-      const res = await fetch("/api/generate", {
+      const res = await apiCall("/api/generate", {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -49,7 +51,7 @@ export default function GeneratePage() {
     setStep("pushing");
     setError(null);
     try {
-      const res = await fetch("/api/push-docusign", {
+      const res = await apiCall("/api/push-docusign", {
         method: "POST",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({}),

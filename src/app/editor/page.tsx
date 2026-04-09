@@ -5,8 +5,10 @@ import { Article, ApiResponse } from "@/types";
 import StepIndicator from "@/components/StepIndicator";
 import ArticleEditor from "@/components/ArticleEditor";
 import LogoutButton from "@/components/LogoutButton";
+import { useAuth } from "@/components/AuthProvider";
 
 export default function EditorPage() {
+  const { apiCall } = useAuth();
   const [articles, setArticles] = useState<Article[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -18,7 +20,7 @@ export default function EditorPage() {
     setError(null);
 
     try {
-      const res = await fetch("/api/articles", {
+      const res = await apiCall("/api/articles", {
         headers: { Authorization: `Bearer ${bearerToken}` },
       });
 

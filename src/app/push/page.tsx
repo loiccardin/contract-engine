@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import StepIndicator from "@/components/StepIndicator";
 import LogoutButton from "@/components/LogoutButton";
+import { useAuth } from "@/components/AuthProvider";
 
 interface PushResult {
   code: string;
@@ -19,6 +20,7 @@ interface PushData {
 }
 
 export default function PushPage() {
+  const { apiCall } = useAuth();
   const [data, setData] = useState<PushData | null>(null);
   const [dbContracts, setDbContracts] = useState<{ code: string; docusignPowerformId: string | null }[]>([]);
 
@@ -32,7 +34,7 @@ export default function PushPage() {
       sessionStorage.removeItem("push_results");
     } else if (saved) {
       // Direct access — load from DB
-      fetch("/api/contracts", { headers: { Authorization: `Bearer ${saved}` } })
+      apiCall("/api/contracts", { headers: { Authorization: `Bearer ${saved}` } })
         .then(r => r.json())
         .then(d => { if (d.success) setDbContracts(d.data); });
     }

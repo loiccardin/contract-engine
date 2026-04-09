@@ -3,6 +3,7 @@
 import { useState, useRef } from "react";
 import { Article } from "@/types";
 import VariantTabs from "./VariantTabs";
+import { useAuth } from "./AuthProvider";
 
 const SCOPE_STYLE: Record<string, { badge: string; border: string; label: string }> = {
   common:     { badge: "bg-emerald-50 text-emerald-700", border: "border-l-emerald-400", label: "Commun" },
@@ -17,6 +18,7 @@ interface ArticleEditorProps {
 }
 
 export default function ArticleEditor({ article: initial, token }: ArticleEditorProps) {
+  const { apiCall } = useAuth();
   const [article, setArticle] = useState<Article>(initial);
   const [isOpen, setIsOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -38,7 +40,7 @@ export default function ArticleEditor({ article: initial, token }: ArticleEditor
     setSaved(false);
 
     try {
-      const res = await fetch(`/api/articles/${article.id}`, {
+      const res = await apiCall(`/api/articles/${article.id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
