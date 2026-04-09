@@ -25,16 +25,14 @@ export default function PushPage() {
   const [dbContracts, setDbContracts] = useState<{ code: string; docusignPowerformId: string | null }[]>([]);
 
   useEffect(() => {
-    const saved = localStorage.getItem("app_token");
-
     // Check for push results from /generate redirect
     const stored = sessionStorage.getItem("push_results");
     if (stored) {
       setData(JSON.parse(stored));
       sessionStorage.removeItem("push_results");
-    } else if (saved) {
+    } else {
       // Direct access — load from DB
-      apiCall("/api/contracts", { headers: { Authorization: `Bearer ${saved}` } })
+      apiCall("/api/contracts")
         .then(r => r.json())
         .then(d => { if (d.success) setDbContracts(d.data); });
     }

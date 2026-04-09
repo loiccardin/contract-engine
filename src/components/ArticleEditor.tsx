@@ -14,10 +14,9 @@ const SCOPE_STYLE: Record<string, { badge: string; border: string; label: string
 
 interface ArticleEditorProps {
   article: Article;
-  token: string;
 }
 
-export default function ArticleEditor({ article: initial, token }: ArticleEditorProps) {
+export default function ArticleEditor({ article: initial }: ArticleEditorProps) {
   const { apiCall } = useAuth();
   const [article, setArticle] = useState<Article>(initial);
   const [isOpen, setIsOpen] = useState(false);
@@ -44,7 +43,6 @@ export default function ArticleEditor({ article: initial, token }: ArticleEditor
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(article),
       });

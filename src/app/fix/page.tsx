@@ -13,20 +13,15 @@ interface ContractInfo {
 
 export default function FixPage() {
   const { apiCall } = useAuth();
-  const [token, setToken] = useState("");
   const [contracts, setContracts] = useState<ContractInfo[]>([]);
   const [selected, setSelected] = useState("");
   const [pushing, setPushing] = useState(false);
   const [result, setResult] = useState<{ success: boolean; message: string } | null>(null);
 
   useEffect(() => {
-    const saved = localStorage.getItem("app_token");
-    if (saved) {
-      setToken(saved);
-      apiCall("/api/contracts", { headers: { Authorization: `Bearer ${saved}` } })
-        .then(r => r.json())
-        .then(d => { if (d.success) setContracts(d.data); });
-    }
+    apiCall("/api/contracts")
+      .then(r => r.json())
+      .then(d => { if (d.success) setContracts(d.data); });
   }, [apiCall]);
 
   const contract = contracts.find(c => c.code === selected);

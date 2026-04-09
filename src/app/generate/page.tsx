@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import StepIndicator from "@/components/StepIndicator";
 import LogoutButton from "@/components/LogoutButton";
@@ -16,25 +16,18 @@ interface ContractResult {
 export default function GeneratePage() {
   const router = useRouter();
   const { apiCall } = useAuth();
-  const [token, setToken] = useState("");
   const [step, setStep] = useState<"idle" | "generating" | "review" | "pushing">("idle");
   const [contracts, setContracts] = useState<ContractResult[]>([]);
   const [errors, setErrors] = useState<{ code: string; error: string }[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const saved = localStorage.getItem("app_token");
-    if (saved) setToken(saved);
-  }, []);
-
   async function handleGenerate() {
-    if (!token) { setError("Connectez-vous d'abord via /editor"); return; }
     setStep("generating");
     setError(null);
     try {
       const res = await apiCall("/api/generate", {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {},
       });
       const data = await res.json();
       if (!data.success) throw new Error(data.error);
@@ -53,7 +46,7 @@ export default function GeneratePage() {
     try {
       const res = await apiCall("/api/push-docusign", {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({}),
       });
       const data = await res.json();
