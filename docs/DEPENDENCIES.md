@@ -49,26 +49,34 @@ Chaque entree suit ce format :
 
 ## Lib
 
+### `src/middleware.ts`
+- **Exporte :** `middleware(request: NextRequest)`, `config` (matcher)
+- **Utilise par :** Next.js (execute automatiquement sur chaque requete matchant le matcher)
+- **Depend de :** `next/server` (NextRequest, NextResponse), `process.env.APP_SECRET`, `process.env.LOGIN_PASSWORD`
+- **Detail :** Edge Runtime -- utilise **Web Crypto API** (`crypto.subtle.importKey` + `crypto.subtle.sign`) pour calculer HMAC-SHA256. Ne peut PAS utiliser le module Node.js `crypto`. Redirige vers `/login` si le cookie session est invalide. Routes publiques : `/login`, `/api/auth/*`, `/_next/*`, `/favicon.ico`. Les routes `/api/*` ne sont pas verifiees par le middleware (chaque route API appelle `authenticate()` elle-meme).
+- **Fonction interne :** `hmacSha256(key, message)` -- calcul HMAC-SHA256 via Web Crypto API
+
 ### `src/lib/auth.ts`
 - **Exporte :** `authenticate(request: NextRequest): NextResponse | null` -- retourne null si OK, NextResponse 401 si echec
-- **Utilise par :** toutes les routes API (`articles`, `articles/[id]`, `contracts`, `generate`, `generate-test`, `generate-test-all`, `push-docusign`)
-- **Depend de :** `next/server` (NextRequest, NextResponse), `process.env.APP_SECRET`
+- **Utilise par :** toutes les routes API (`articles`, `articles/[id]`, `contracts`, `generate`, `generate-test`, `generate-test-all`, `push-docusign`, `push-docusign/single`)
+- **Depend de :** `next/server` (NextRequest, NextResponse), `crypto` (createHmac), `process.env.APP_SECRET`, `process.env.LOGIN_PASSWORD`
+- **Detail :** Accepte deux methodes d'auth : (1) header `Authorization: Bearer {APP_SECRET}`, (2) cookie `session` = HMAC-SHA256(APP_SECRET, LOGIN_PASSWORD). Utilise le module Node.js `crypto` (pas Web Crypto).
 
 ### `src/lib/google-drive.ts`
 - **Exporte :** `getFileName(code: string): string`, `archiveCurrentFolders(): Promise<string[]>`, `createOutputFolders(dateStr: string): Promise<{ docsFolderId, pdfFolderId }>`, `uploadDocx(folderId, fileName, docxBuffer): Promise<{ fileId, fileUrl }>`, `uploadPdf(folderId, fileName, pdfBuffer): Promise<string>`, `downloadFile(fileId: string): Promise<Buffer>`
-- **Utilise par :** `src/app/api/generate/route.ts` (archiveCurrentFolders, createOutputFolders, uploadDocx, getFileName), `src/app/api/push-docusign/route.ts` (downloadFile, uploadPdf)
+- **Utilise par :** `src/app/api/generate/route.ts` (archiveCurrentFolders, createOutputFolders, uploadDocx, getFileName), `src/app/api/push-docusign/route.ts` (downloadFile, uploadPdf), `src/app/api/push-docusign/single/route.ts` (downloadFile)
 - **Depend de :** `googleapis` (npm), `stream` (Readable)
 - **Constante interne :** `FILE_NAMES` -- mapping code -> nom complet du fichier Drive (18 entrees)
 
 ### `src/lib/docusign.ts`
 - **Exporte :** `getAccessToken(): Promise<string>`, `listTemplates(): Promise<{ templateId, name }[]>`, `createTemplateWithDocument(contractCode, buffer, fileName, fileType): Promise<string>`, `updateTemplateDocument(templateId, buffer, fileName, fileType): Promise<void>`, `createPowerForm(templateId, contractCode): Promise<{ powerFormId, powerFormUrl }>`, `reactivatePowerForm(powerFormId): Promise<void>`
-- **Utilise par :** `src/app/api/push-docusign/route.ts` (getAccessToken, reactivatePowerForm), `scripts/test-docusign-auth.ts` (getAccessToken, listTemplates), `scripts/test-docusign-create-template.ts` (createTemplateWithDocument, createPowerForm), `scripts/create-template-anchor.ts` (getAccessToken), `scripts/inspect-prod-template.ts` (getAccessToken)
+- **Utilise par :** `src/app/api/push-docusign/route.ts` (getAccessToken, reactivatePowerForm), `src/app/api/push-docusign/single/route.ts` (getAccessToken, reactivatePowerForm), `scripts/test-docusign-auth.ts` (getAccessToken, listTemplates), `scripts/test-docusign-create-template.ts` (createTemplateWithDocument, createPowerForm), `scripts/create-template-anchor.ts` (getAccessToken), `scripts/inspect-prod-template.ts` (getAccessToken)
 - **Depend de :** `jsonwebtoken` (npm), `process.env.DOCUSIGN_*`
 - **Detail :** Token cache en memoire avec renouvellement automatique (marge 5min). JWT Grant OAuth 2.0 vers instance EU.
 
 ### `src/lib/pdf-converter.ts`
 - **Exporte :** `convertDocxToPdf(docxBuffer: Buffer): Promise<Buffer>`
-- **Utilise par :** `src/app/api/push-docusign/route.ts`, `scripts/test-docusign-create-template.ts`, `scripts/test-pdf-conversion.ts`, `scripts/create-template-anchor.ts`
+- **Utilise par :** `src/app/api/push-docusign/route.ts`, `src/app/api/push-docusign/single/route.ts`, `scripts/test-docusign-create-template.ts`, `scripts/test-pdf-conversion.ts`, `scripts/create-template-anchor.ts`
 - **Depend de :** `child_process` (execSync), `fs`, `path`, `crypto` (randomUUID)
 - **Detail :** LibreOffice headless, timeout 30s, fichiers temporaires dans /tmp, detection auto du binaire (macOS vs Linux).
 
@@ -111,6 +119,24 @@ Chaque entree suit ce format :
 - **Exporte :** `StepIndicator` (barre 3 etapes : Modifier/Generer/Pousser, prop `currentStep`)
 - **Utilise par :** `src/app/editor/page.tsx`, `src/app/generate/page.tsx`, `src/app/push/page.tsx`
 - **Depend de :** rien
+
+### `src/components/AuthProvider.tsx`
+- **Exporte :** `AuthProvider` (composant, default export), `useAuth()` (hook React context)
+- **Utilise par :** `src/app/layout.tsx` (wrape toute l'app), consomme via `useAuth()` dans `src/app/fix/page.tsx` et potentiellement toute page utilisant `apiCall()`
+- **Depend de :** `react` (createContext, useContext, useState, useCallback, useRef), `src/components/ReLoginModal.tsx`
+- **Detail :** Fournit `apiCall(url, init)` qui wrappe `fetch()` et intercepte les 401 pour afficher le ReLoginModal au lieu de perdre le travail en cours. La requete echouee est stockee dans un `useRef` et rejouee apres reconnexion.
+
+### `src/components/ReLoginModal.tsx`
+- **Exporte :** `ReLoginModal` (composant, default export, prop `onSuccess`)
+- **Utilise par :** `src/components/AuthProvider.tsx`
+- **Depend de :** `react` (useState)
+- **Detail :** Overlay modal plein ecran (backdrop blur), formulaire mot de passe, appelle `POST /api/auth/login`. Message "Session expiree" + "Votre travail est preserve".
+
+### `src/components/LogoutButton.tsx`
+- **Exporte :** `LogoutButton` (composant, default export)
+- **Utilise par :** `src/app/fix/page.tsx` (et potentiellement d'autres pages avec header)
+- **Depend de :** `react`, `next/navigation` (useRouter)
+- **Detail :** Bouton icone (SVG), appelle `POST /api/auth/logout` puis redirige vers `/login`.
 
 ---
 
@@ -168,6 +194,28 @@ Chaque entree suit ce format :
 - **Utilise par :** tests manuels (temporaire)
 - **Depend de :** `src/lib/db.ts`, `src/lib/auth.ts`, `src/lib/contract-assembler.ts`, `src/lib/docx-generator.ts`, `src/types/index.ts`, `jszip` (npm)
 
+### `src/app/api/auth/login/route.ts`
+- **Exporte :** `POST` (connexion par mot de passe -> pose cookie session)
+- **Utilise par :** `src/app/login/page.tsx` via fetch, `src/components/ReLoginModal.tsx` via fetch
+- **Depend de :** `next/server` (NextRequest, NextResponse), `crypto` (createHmac), `process.env.LOGIN_PASSWORD`, `process.env.APP_SECRET`
+
+### `src/app/api/auth/logout/route.ts`
+- **Exporte :** `POST` (supprime cookie session)
+- **Utilise par :** `src/components/LogoutButton.tsx` via fetch
+- **Depend de :** `next/server` (NextResponse)
+
+### `src/app/api/auth/check/route.ts`
+- **Exporte :** `GET` (verifie validite cookie session)
+- **Utilise par :** potentiellement le frontend pour verifier la session
+- **Depend de :** `next/server` (NextRequest, NextResponse), `crypto` (createHmac), `process.env.LOGIN_PASSWORD`, `process.env.APP_SECRET`
+
+### `src/app/api/push-docusign/single/route.ts`
+- **Exporte :** `POST` (push un seul contrat vers DocuSign)
+- **Utilise par :** `src/app/fix/page.tsx` via fetch (apiCall)
+- **Depend de :** `src/lib/db.ts` (prisma), `src/lib/auth.ts` (authenticate), `src/lib/pdf-converter.ts` (convertDocxToPdf), `src/lib/google-drive.ts` (downloadFile), `src/lib/docusign.ts` (getAccessToken, reactivatePowerForm), `process.env.DOCUSIGN_BASE_URL`, `process.env.DOCUSIGN_ACCOUNT_ID`
+- **Body :** `{ "contractCode": "P1.P.CJ" }`
+- **Detail :** Telecharge le DOCX depuis Drive, convertit en PDF via LibreOffice, met a jour le document dans le template DocuSign (PUT document/1), reactive le PowerForm.
+
 ---
 
 ## Pages
@@ -177,8 +225,13 @@ Chaque entree suit ce format :
 - **Utilise par :** Next.js routing
 - **Depend de :** `next/navigation` (redirect)
 
+### `src/app/login/page.tsx`
+- **Exporte :** `LoginPage` (client component -- formulaire mot de passe, appelle POST /api/auth/login, redirige vers /editor)
+- **Utilise par :** Next.js routing (affiche par le middleware si pas de session)
+- **Depend de :** `react` (useState), `next/navigation` (useRouter)
+
 ### `src/app/editor/page.tsx`
-- **Exporte :** `EditorPage` (client component -- login token + liste articles en accordeon)
+- **Exporte :** `EditorPage` (client component -- liste articles en accordeon)
 - **Utilise par :** Next.js routing
 - **Depend de :** `react` (useState, useEffect), `src/types/index.ts` (Article, ApiResponse), `src/components/StepIndicator.tsx`, `src/components/ArticleEditor.tsx`
 
@@ -193,6 +246,12 @@ Chaque entree suit ce format :
 - **Utilise par :** Next.js routing
 - **Depend de :** `react` (useState, useEffect), `src/components/StepIndicator.tsx`
 - **Detail :** Recupere les resultats via sessionStorage (redirect depuis /generate) ou affiche les PowerForms existants depuis /api/contracts.
+
+### `src/app/fix/page.tsx`
+- **Exporte :** `FixPage` (client component -- correction unitaire : selectionne un contrat, ouvre dans Drive, push seul vers DocuSign)
+- **Utilise par :** Next.js routing
+- **Depend de :** `react` (useState, useEffect), `src/components/AuthProvider.tsx` (useAuth -> apiCall), `src/components/LogoutButton.tsx`
+- **Detail :** Liste les contrats via GET /api/contracts, lien "Ouvrir dans Drive" vers Google Docs, bouton push via POST /api/push-docusign/single.
 
 ### `src/app/history/page.tsx`
 - **Exporte :** `HistoryPage` (stub non implemente)
@@ -271,6 +330,11 @@ Chaque entree suit ce format :
 | `Dockerfile` | Image Docker custom (node:20-slim + LibreOffice + Helvetica Neue) | Oui |
 | `railway.json` | Config Railway -- pointe vers Dockerfile | Oui |
 | `nixpacks.toml` | Config Nixpacks -- installe libreoffice-core/writer | Oui |
+
+### `src/app/layout.tsx`
+- **Exporte :** `RootLayout` (layout global, wrape children dans `AuthProvider`)
+- **Utilise par :** Next.js (layout racine)
+- **Depend de :** `next/font/local` (Geist fonts), `src/components/AuthProvider.tsx`
 
 ---
 

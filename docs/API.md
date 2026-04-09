@@ -6,14 +6,17 @@
 
 - **Local :** `http://localhost:3000/api`
 - **Preview :** [URL Railway dev]/api
-- **Production :** [URL prod]/api
+- **Production :** https://contract-engine-app-production.up.railway.app/api
 
 ## Authentification
 
-Toutes les routes necessitent un header `Authorization: Bearer {APP_SECRET}`.
+Les routes API acceptent **deux methodes** d'authentification (l'une ou l'autre suffit) :
+1. **Bearer token** : header `Authorization: Bearer {APP_SECRET}` (machine-to-machine, scripts, appels externes)
+2. **Cookie session** : cookie `session` pose par `POST /api/auth/login` (frontend, operatrice connectee)
+
 Reponse si non authentifie : `401 { success: false, error: "Non authentifie" }`
 
-Exception : `GET /api/versions` n'a pas d'auth (stub).
+Exception : `GET /api/versions` n'a pas d'auth (stub). Les routes `/api/auth/*` sont publiques.
 
 ## Format de reponse standard
 
@@ -28,6 +31,41 @@ Exception : `GET /api/versions` n'a pas d'auth (stub).
 ---
 
 ## Endpoints
+
+### Authentification
+
+#### `POST /api/auth/login`
+**Description :** Connexion par mot de passe unique. Pose un cookie session HMAC-SHA256.
+**Auth :** Aucune (route publique)
+**Body :**
+```json
+{ "password": "string" }
+```
+
+**Traitement :**
+1. Verifie que `LOGIN_PASSWORD` et `APP_SECRET` sont configures
+2. Compare le mot de passe recu avec `LOGIN_PASSWORD`
+3. Si OK : calcule `HMAC-SHA256(APP_SECRET, LOGIN_PASSWORD)` et pose le cookie `session` (httpOnly, secure, sameSite strict, maxAge 90 jours)
+
+**Reponse 200 :** `{ "success": true }` + cookie `session`
+**Reponse 401 :** `{ "success": false, "error": "Mot de passe incorrect" }`
+**Reponse 500 :** `{ "success": false, "error": "Configuration serveur manquante" }`
+
+#### `POST /api/auth/logout`
+**Description :** Deconnexion. Supprime le cookie session (maxAge: 0).
+**Auth :** Aucune (route publique)
+**Body :** aucun
+
+**Reponse 200 :** `{ "success": true }` + cookie `session` vide
+
+#### `GET /api/auth/check`
+**Description :** Verifie la validite du cookie session courant.
+**Auth :** Aucune (route publique)
+
+**Reponse 200 :** `{ "success": true }` si le cookie est valide ou si l'auth n'est pas configuree
+**Reponse 401 :** `{ "success": false }` si le cookie est absent ou invalide
+
+---
 
 ### Articles
 
@@ -187,6 +225,40 @@ Exception : `GET /api/versions` n'a pas d'auth (stub).
 - Des initialHere tabs (paraphes) sur chaque page, positionnes par coordonnees fixes
 - Un carbonCopy "LETAHOST LLC" pour recevoir une copie
 - Un tab "bon_pour_accord" et un tab "date_signature" ancres dans le texte
+
+---
+
+### Push DocuSign unitaire
+
+#### `POST /api/push-docusign/single`
+**Description :** Telecharge un seul DOCX depuis Drive, le convertit en PDF, et met a jour le template DocuSign existant. Reactive le PowerForm.
+**Auth :** Requise (bearer token ou cookie session)
+**Body :**
+```json
+{ "contractCode": "P1.P.CJ" }
+```
+
+**Traitement :**
+1. Verifie que le contrat existe en DB avec `googleDocId` et `docusignTemplateId`
+2. Telecharge le DOCX depuis Drive (peut avoir ete modifie manuellement dans Google Docs)
+3. Convertit en PDF via LibreOffice headless
+4. PUT le PDF dans le template DocuSign (remplace le document existant, documentid=1)
+5. Reactive le PowerForm si `docusignPowerformId` existe
+
+**Reponse 200 :**
+```json
+{
+  "success": true,
+  "data": {
+    "code": "P1.P.CJ",
+    "status": "ok",
+    "template_id": "..."
+  }
+}
+```
+
+**Reponse 400 :** `{ "success": false, "error": "contractCode requis" }` ou `"Pas de google_doc_id"` ou `"Pas de template DocuSign"`
+**Reponse 404 :** `{ "success": false, "error": "Contrat 'XXX' non trouve" }`
 
 ---
 

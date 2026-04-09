@@ -6,17 +6,23 @@
 [Operatrice -- Browser]
        |
        v
-[Next.js App Router]  -->  [Middleware: auth check (token bearer)]
+[Next.js App Router]  -->  [Middleware: cookie session (Web Crypto HMAC-SHA256)]
        |
+       |-- /app/login/            -> Page de connexion (mot de passe unique)
        |-- /app/editor/           -> Editeur d'articles (CRUD)
        |-- /app/generate/         -> Generation des 18 DOCX + relecture + push
        |-- /app/push/             -> Resultats push DocuSign + liens PowerForms
+       |-- /app/fix/              -> Correction unitaire (push un seul contrat)
        |-- /app/history/          -> Historique des versions (stub)
        |
+       |-- /app/api/auth/login    -> POST login (mot de passe -> cookie session 90j)
+       |-- /app/api/auth/logout   -> POST logout (supprime cookie)
+       |-- /app/api/auth/check    -> GET verifie validite session
        |-- /app/api/articles/*    -> CRUD articles (PostgreSQL)
        |-- /app/api/contracts     -> Liste les 18 contrats avec mapping DocuSign
        |-- /app/api/generate      -> Assemblage + generation DOCX + upload Drive
        |-- /app/api/push-docusign -> DOCX->PDF LibreOffice + push DocuSign + upload PDF Drive
+       |-- /app/api/push-docusign/single -> Push un seul contrat vers DocuSign
        |-- /app/api/versions      -> Historique des versions (stub)
        |-- /app/api/generate-test -> Un seul DOCX (temporaire)
        +-- /app/api/generate-test-all -> 18 DOCX en ZIP (temporaire)
@@ -60,11 +66,44 @@
 ## Flux de donnees principaux
 
 ### Authentification
+
 ```
-Operatrice -> Login (token bearer) -> authenticate() verifie APP_SECRET -> Acces autorise
+--- Connexion ---
+Operatrice -> /login -> entre mot de passe
+  -> POST /api/auth/login
+  -> verifie LOGIN_PASSWORD
+  -> pose cookie "session" = HMAC-SHA256(APP_SECRET, LOGIN_PASSWORD)
+  -> cookie httpOnly, secure, sameSite strict, maxAge 90 jours
+  -> redirect vers /editor
+
+--- Middleware (pages frontend) ---
+Requete page -> middleware.ts (Edge Runtime)
+  -> lit cookie "session"
+  -> calcule HMAC-SHA256 via Web Crypto API (crypto.subtle)
+  -> si invalide : redirect vers /login
+  -> si valide : NextResponse.next()
+
+--- Routes API ---
+Requete API -> authenticate() dans src/lib/auth.ts (Node.js runtime)
+  -> Method 1 : header Authorization: Bearer {APP_SECRET}
+  -> Method 2 : cookie "session" = HMAC-SHA256(APP_SECRET, LOGIN_PASSWORD) via Node.js crypto
+  -> si aucune methode ne matche : 401
+
+--- Session expiree en cours de travail ---
+Appel API retourne 401 -> AuthProvider.apiCall() intercepte
+  -> ReLoginModal s'affiche (overlay, pas de redirect, pas de perte de donnees)
+  -> Operatrice re-entre le mot de passe -> POST /api/auth/login
+  -> Requete echouee rejouee automatiquement
 ```
-Auth simple : pas de multi-users, pas de roles. Un seul token partage par l'equipe.
-Le token est stocke dans `localStorage` cote client.
+
+**Architecture auth :**
+- `src/middleware.ts` -- Edge Runtime, utilise **Web Crypto API** (`crypto.subtle.importKey` + `crypto.subtle.sign`) car le module Node.js `crypto` n'est pas disponible en Edge Runtime
+- `src/lib/auth.ts` -- Node.js runtime, utilise `createHmac` de Node.js `crypto`
+- `src/components/AuthProvider.tsx` -- React context dans `layout.tsx`, wrape toute l'app, fournit `apiCall()` (wrapper de `fetch` qui intercepte les 401) et affiche le `ReLoginModal` si necessaire
+- `src/components/ReLoginModal.tsx` -- overlay de reconnexion (formulaire mot de passe, message "Session expiree", "Votre travail est preserve")
+- `src/components/LogoutButton.tsx` -- appelle `POST /api/auth/logout`, redirige vers `/login`
+
+Auth simple : pas de multi-users, pas de roles. Un seul mot de passe partage par l'equipe.
 
 ### Flux principal : Modification -> Generation -> Push
 
@@ -92,6 +131,24 @@ Le token est stocke dans `localStorage` cote client.
       - Si mise a jour : docusign.ts remplace le document + reactive le PowerForm
    b. INSERT versions (numero incremental)
    -> Redirect vers /push qui affiche les liens PowerForm
+```
+
+### Flux correction unitaire (/fix -> POST /api/push-docusign/single)
+
+```
+1. CORRIGER (Page /fix)
+   Operatrice -> selectionne un contrat dans la liste deroulante
+   -> clique "Ouvrir dans Drive" -> ouvre le DOCX dans Google Docs
+   -> corrige manuellement le document
+   -> revient sur /fix -> clique "Pousser vers DocuSign"
+   -> POST /api/push-docusign/single { contractCode: "P1.P.CJ" }
+
+2. PUSH UNITAIRE (POST /api/push-docusign/single)
+   a. Telecharge le DOCX depuis Drive (google_doc_id du contrat)
+   b. Convertit en PDF via LibreOffice headless
+   c. PUT le PDF dans le template DocuSign existant (remplace le document)
+   d. Reactive le PowerForm (desactive automatiquement apres mise a jour du template)
+   -> Pas de nouvelle version inseree (correction ponctuelle)
 ```
 
 ### Diagramme du flux DOCX -> PDF -> DocuSign

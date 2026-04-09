@@ -144,6 +144,40 @@
 
 ---
 
+## DEC-014 : Auth par mot de passe unique + cookie HMAC (pas OAuth, pas table users)
+**Date :** 2026-04-09
+**Contexte :** L'app interne utilisee par 1-2 operatrices a besoin d'une protection d'acces en production, mais pas d'un systeme multi-utilisateurs.
+**Decision :** Un mot de passe unique (`LOGIN_PASSWORD` en variable d'env), verifie cote serveur. Le cookie session est un HMAC-SHA256 du mot de passe signe avec `APP_SECRET`. Duree 90 jours.
+**Alternatives considerees :**
+- OAuth Google -> ecarte car overkill, necessite un domaine autorise, et l'operatrice n'a pas forcement un compte Google du bon domaine
+- Table users + hash bcrypt -> ecarte car 1-2 utilisateurs, pas besoin de comptes individuels
+- Basic Auth HTTP -> ecarte car pas de session persistante, le navigateur redemande le mot de passe a chaque redemarrage
+**Consequences :** Pas de table users. Le mot de passe est partage par l'equipe. Si le mot de passe change, toutes les sessions existantes sont invalidees (car le HMAC change). Le `LOGIN_PASSWORD` doit etre ajoute aux variables d'env sur Railway.
+
+---
+
+## DEC-015 : Web Crypto API dans le middleware (Edge Runtime)
+**Date :** 2026-04-09
+**Contexte :** Le middleware Next.js s'execute en Edge Runtime, qui ne donne pas acces au module Node.js `crypto`. Mais l'auth cookie necessite un HMAC-SHA256.
+**Decision :** Utiliser l'API Web Crypto (`crypto.subtle.importKey` + `crypto.subtle.sign`) dans `src/middleware.ts`. Garder Node.js `crypto` (`createHmac`) dans `src/lib/auth.ts` (route API, Node.js runtime).
+**Alternatives considerees :**
+- Forcer le middleware en Node.js runtime -> ecarte car Next.js Edge middleware est plus performant et deploye au edge sur les plateformes compatibles
+- Librairie tierce compatible Edge -> ecarte car Web Crypto est natif et standard
+**Consequences :** Deux implementations du meme calcul HMAC-SHA256 : une via Web Crypto (middleware), une via Node.js crypto (routes API). Le resultat est identique (meme hex output). Attention a garder les deux en sync si la logique de hash change.
+
+---
+
+## DEC-016 : Page /fix pour correction unitaire sans regeneration
+**Date :** 2026-04-09
+**Contexte :** Parfois l'operatrice doit corriger une coquille dans un seul contrat sans regenerer les 18. Le workflow complet (editor -> generate -> push) est disproportionne pour une correction mineure.
+**Decision :** Page `/fix` qui permet de selectionner un contrat, l'ouvrir dans Google Docs pour correction manuelle, puis pousser uniquement ce contrat vers DocuSign via `POST /api/push-docusign/single`.
+**Alternatives considerees :**
+- Regenerer les 18 meme pour une correction -> ecarte car trop lent et risque de perdre des corrections manuelles sur d'autres contrats
+- Editer directement dans DocuSign -> ecarte car les anchor tabs seraient perdus et la mise en page corrompue
+**Consequences :** L'endpoint `/api/push-docusign/single` telecharge le DOCX depuis Drive (qui peut avoir ete modifie manuellement dans Google Docs), le convertit en PDF, et met a jour le template DocuSign existant. Le PowerForm est reactive. Pas de nouvelle version inseree (correction ponctuelle, pas de regeneration complete).
+
+---
+
 > Ajouter une nouvelle entree a chaque decision structurante.
 
 > **Derniere mise a jour :** 2026-04-09
