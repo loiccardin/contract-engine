@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import StepIndicator from "@/components/StepIndicator";
+import LogoutButton from "@/components/LogoutButton";
 
 interface PushResult {
   code: string;
@@ -54,7 +55,10 @@ export default function PushPage() {
               </div>
               <h1 className="text-lg font-semibold text-gray-900 tracking-tight">Contract Engine</h1>
             </div>
-            <StepIndicator currentStep={3} />
+            <div className="flex items-center gap-4">
+              <StepIndicator currentStep={3} />
+              <LogoutButton />
+            </div>
           </div>
         </header>
         <main className="max-w-4xl mx-auto px-6 py-8">

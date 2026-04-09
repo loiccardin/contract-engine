@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Article, ApiResponse } from "@/types";
 import StepIndicator from "@/components/StepIndicator";
 import ArticleEditor from "@/components/ArticleEditor";
+import LogoutButton from "@/components/LogoutButton";
 
 export default function EditorPage() {
   const [articles, setArticles] = useState<Article[]>([]);
@@ -130,7 +131,10 @@ export default function EditorPage() {
               Contract Engine
             </h1>
           </div>
-          <StepIndicator currentStep={1} />
+          <div className="flex items-center gap-4">
+            <StepIndicator currentStep={1} />
+            <LogoutButton />
+          </div>
         </div>
       </header>
 

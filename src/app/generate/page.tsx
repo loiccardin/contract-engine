@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import StepIndicator from "@/components/StepIndicator";
+import LogoutButton from "@/components/LogoutButton";
 
 interface ContractResult {
   code: string;
@@ -78,7 +79,10 @@ export default function GeneratePage() {
             </div>
             <h1 className="text-lg font-semibold text-gray-900 tracking-tight">Contract Engine</h1>
           </div>
-          <StepIndicator currentStep={2} />
+          <div className="flex items-center gap-4">
+            <StepIndicator currentStep={2} />
+            <LogoutButton />
+          </div>
         </div>
       </header>
 
