@@ -1,7 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createHmac } from "crypto";
 
-export function middleware(request: NextRequest) {
+async function hmacSha256(key: string, message: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const cryptoKey = await crypto.subtle.importKey(
+    "raw",
+    encoder.encode(key),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+  const signature = await crypto.subtle.sign("HMAC", cryptoKey, encoder.encode(message));
+  return Array.from(new Uint8Array(signature)).map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Public routes — always allow
@@ -25,11 +37,10 @@ export function middleware(request: NextRequest) {
   const appSecret = process.env.APP_SECRET;
 
   if (!loginPassword || !appSecret) {
-    // Config missing — allow access (dev mode without LOGIN_PASSWORD)
     return NextResponse.next();
   }
 
-  const expectedSession = createHmac("sha256", appSecret).update(loginPassword).digest("hex");
+  const expectedSession = await hmacSha256(appSecret, loginPassword);
 
   if (sessionCookie !== expectedSession) {
     const loginUrl = new URL("/login", request.url);
