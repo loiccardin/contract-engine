@@ -27,14 +27,14 @@ export default function FixPage() {
   const contract = contracts.find(c => c.code === selected);
 
   async function handlePush() {
-    if (!selected || !token) return;
+    if (!selected) return;
     setPushing(true);
     setResult(null);
 
     try {
       const res = await apiCall("/api/push-docusign/single", {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ contractCode: selected }),
       });
       const data = await res.json();
