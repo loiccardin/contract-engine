@@ -33,7 +33,7 @@ async function deleteTemplate(token: string, templateId: string) {
 }
 
 async function main() {
-  const code = "P1.P.CJ";
+  const code = process.argv[2] || "P1.P.CJ";
   console.log(`=== Création template DocuSign V3 — ${code} ===\n`);
 
   const token = await getAccessToken();
@@ -90,7 +90,31 @@ async function main() {
   const s8 = { font: "lucidaconsole", fontSize: "size8", fontColor: "black", bold: "false", italic: "false", underline: "false" };
   const a0 = { anchorXOffset: "0", anchorYOffset: "0", anchorUnits: "pixels" };
 
+  const isCourteDuree = (contract as unknown as Contract).dureeType === "courte";
+
+  const courteDureeTabs = isCourteDuree
+    ? [
+        // Article 2.3 courte durée — rectangle plages de location
+        {
+          anchorString: "/pl1/", anchorXOffset: "0", anchorYOffset: "5", anchorUnits: "pixels",
+          ...s9, ...common,
+          tabLabel: "plages_location",
+          value: "A compléter par les plages durant lesquelles le LOGEMENT sera disponible à la location",
+          required: "true", width: 520, height: 35,
+        },
+        // Article 2.3 courte durée — nombre de jours (inline)
+        {
+          anchorString: "/jr1/", ...a0,
+          ...s9, ...common,
+          tabLabel: "nombre_jours",
+          value: "",
+          required: "true", width: 80, height: 16,
+        },
+      ]
+    : [];
+
   const textTabs = [
+    ...courteDureeTabs,
     // Page 1 — formulaire propriétaire
     { anchorString: "/nm1/", ...a0, ...s9, ...common, tabLabel: "nom_prenoms", value: "Nom et Prénoms", required: "true", width: 365, height: 16 },
     { anchorString: "/ss1/", ...a0, ...s9, ...common, tabLabel: "siege_social", value: "Adresse postale complète du siège social", required: "true", width: 391, height: 16 },
