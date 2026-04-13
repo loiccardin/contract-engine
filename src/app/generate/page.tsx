@@ -95,11 +95,11 @@ export default function GeneratePage() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
               </svg>
             </div>
-            <h2 className="text-2xl font-semibold text-gray-900 mb-2 tracking-tight">Generer les 18 contrats</h2>
+            <h2 className="text-2xl font-semibold text-gray-900 mb-2 tracking-tight">Generer les 24 contrats</h2>
             <p className="text-gray-500 mb-8 max-w-md mx-auto">Assemble les articles, genere les DOCX et les uploade dans Google Drive.</p>
             <button onClick={handleGenerate}
               className="px-8 py-3 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition-colors shadow-sm hover:shadow-md">
-              Generer les 18 DOCX
+              Generer les 24 DOCX
             </button>
           </div>
         )}
@@ -115,7 +115,7 @@ export default function GeneratePage() {
               </svg>
             </div>
             <p className="text-gray-900 font-medium mt-6">Generation en cours...</p>
-            <p className="text-sm text-gray-500 mt-1">18 DOCX — environ 3 minutes</p>
+            <p className="text-sm text-gray-500 mt-1">24 DOCX — environ 4 minutes</p>
           </div>
         )}
 
@@ -124,9 +124,9 @@ export default function GeneratePage() {
           <div>
             <div className="mb-6">
               <div className="flex items-center gap-3 mb-1">
-                <h2 className="text-xl font-semibold text-gray-900 tracking-tight">{okCount}/18 DOCX generes</h2>
-                <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${okCount === 18 ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
-                  {okCount === 18 ? "Complet" : "Partiel"}
+                <h2 className="text-xl font-semibold text-gray-900 tracking-tight">{okCount}/24 DOCX generes</h2>
+                <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${okCount === 24 ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
+                  {okCount === 24 ? "Complet" : "Partiel"}
                 </span>
               </div>
               <p className="text-sm text-gray-500 mt-1">Verifiez les documents dans Drive avant de pousser dans DocuSign.</p>
@@ -165,7 +165,7 @@ export default function GeneratePage() {
                   </svg>
                 </div>
                 <p className="text-gray-900 font-medium mt-4">Conversion PDF et push DocuSign en cours...</p>
-                <p className="text-sm text-gray-500 mt-1">18 conversions + 18 templates — environ 5 minutes</p>
+                <p className="text-sm text-gray-500 mt-1">24 conversions + 24 templates — environ 7 minutes</p>
               </div>
             ) : (
               <div className="border-t border-gray-200 pt-6">

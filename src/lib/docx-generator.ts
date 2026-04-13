@@ -588,30 +588,30 @@ function buildAnnexeTable(content: string, pageBreak: boolean = false): Paragrap
 // ─── Auto-injection markers courte durée (art_2_3) ───
 
 /**
- * Pour les variantes courte durée, le texte de l'art_2_3 stocké en DB ne
- * contient PAS les markers /pl1/ et /jr1/ — Loïc n'a pas à voir ces codes
- * dans l'éditeur. Le generator les injecte automatiquement après la phrase
- * de trigger "les périodes suivantes", sous la forme :
- *   /pl1/
- *   Soit /jr1/ jours
- *   Ci-après désignée la « Période de location du LOGEMENT »
+ * Pour les variantes courte durée, Loïc écrit du texte normal dans l'éditeur —
+ * il ne voit jamais les markers /pl1/ /jr1/. Le generator transforme :
+ *
+ *   1. Après la ligne contenant "les périodes suivantes" → insère un espace
+ *      vide + /pl1/ invisible (blanc 2pt) pour y accrocher le rectangle
+ *      DocuSign (~35px).
+ *   2. Dans toute ligne "Soit (à compléter) jours" → remplace "(à compléter)"
+ *      par /jr1/ invisible, pour y accrocher le champ nombre de jours inline.
  */
 function injectCourteDureeMarkers(content: string): string {
-  const lines = content.split("\n");
-  const insertBlock = [
-    "",
-    "/pl1/",
-    "",
-    "Soit /jr1/ jours",
-    "",
-    "Ci-après désignée la « Période de location du LOGEMENT »",
-  ];
+  const lines = content.split("\n").map((line) =>
+    /\bSoit\b.*\(à compléter\).*\bjours\b/i.test(line)
+      ? line.replace(/\(à compléter\)/, "/jr1/")
+      : line
+  );
+
   for (let i = 0; i < lines.length; i++) {
     if (/les périodes suivantes\s*:?\s*$/i.test(lines[i].trim())) {
+      // Réserve ~35px pour le rectangle DocuSign posé sur /pl1/.
+      const insertBlock = ["", "", "/pl1/", "", ""];
       return [...lines.slice(0, i + 1), ...insertBlock, ...lines.slice(i + 1)].join("\n");
     }
   }
-  return content;
+  return lines.join("\n");
 }
 
 // ─── Dynamic numbering ───

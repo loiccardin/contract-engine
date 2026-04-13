@@ -140,7 +140,9 @@ async function main() {
   const body = {
     name: `${code} - Promesse contrat de conciergerie`,
     description: `Contract Engine — ${code}`,
-    emailSubject: "Contrat de conciergerie — Signature requise",
+    emailSubject: "Promesse de contrat de conciergerie — Signature requise",
+    recipientsLock: "true",
+    messageLock: "true",
     documents: [{ documentBase64, name: `${code}.pdf`, fileExtension: "pdf", documentId: "1" }],
     recipients: {
       signers: [{
