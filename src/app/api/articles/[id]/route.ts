@@ -48,6 +48,8 @@ const UPDATABLE_FIELDS = [
   "contentZonesCj",
   "contentZonesR",
   "contentSansMenage",
+  "contentStandard",
+  "contentCourte",
   "isPageBreakBefore",
   "keepTogether",
 ] as const;

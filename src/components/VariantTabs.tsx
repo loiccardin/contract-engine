@@ -24,6 +24,10 @@ const TABS_BY_SCOPE: Record<string, TabConfig[]> = {
     { key: "contentZonesR", label: "Zones Rouges" },
     { key: "contentSansMenage", label: "Sans ménage" },
   ],
+  duree: [
+    { key: "contentStandard", label: "Standard" },
+    { key: "contentCourte", label: "Courte durée" },
+  ],
 };
 
 const SCOPE_COLORS: Record<string, { dot: string; active: string; ring: string }> = {
@@ -31,6 +35,7 @@ const SCOPE_COLORS: Record<string, { dot: string; active: string; ring: string }
   commission: { dot: "bg-violet-500", active: "border-violet-500 text-violet-700", ring: "focus:ring-violet-400" },
   statut: { dot: "bg-blue-500", active: "border-blue-500 text-blue-700", ring: "focus:ring-blue-400" },
   menage: { dot: "bg-amber-500", active: "border-amber-500 text-amber-700", ring: "focus:ring-amber-400" },
+  duree: { dot: "bg-rose-500", active: "border-rose-500 text-rose-700", ring: "focus:ring-rose-400" },
 };
 
 interface VariantTabsProps {
