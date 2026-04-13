@@ -3,79 +3,15 @@ import { prisma } from "@/lib/db";
 import { authenticate } from "@/lib/auth";
 import { convertDocxToPdf } from "@/lib/pdf-converter";
 import { downloadFile, uploadPdf } from "@/lib/google-drive";
-import { getAccessToken, reactivatePowerForm } from "@/lib/docusign";
+import { getAccessToken, reactivatePowerForm, buildTemplateBody, updateTemplateMetadata } from "@/lib/docusign";
 import { google } from "googleapis";
 
 const BASE_URL = process.env.DOCUSIGN_BASE_URL!;
 const ACCOUNT_ID = process.env.DOCUSIGN_ACCOUNT_ID!;
 
-// ─── Anchor tabs config (V7) ───
-
 function countPdfPages(buf: Buffer): number {
   const text = buf.toString("latin1");
   return (text.match(/\/Type\s*\/Page[^s]/g) || []).length;
-}
-
-function buildTemplateBody(code: string, pdfBase64: string, pageCount: number) {
-  const common = {
-    locked: "false", disableAutoSize: "false", concealValueOnDocument: "false",
-    maxLength: "4000", shared: "false", requireInitialOnSharedChange: "false", requireAll: "false",
-  };
-  const s9 = { font: "lucidaconsole", fontSize: "size9", fontColor: "black", bold: "false", italic: "false", underline: "false" };
-  const s8 = { font: "lucidaconsole", fontSize: "size8", fontColor: "black", bold: "false", italic: "false", underline: "false" };
-  const a0 = { anchorXOffset: "0", anchorYOffset: "0", anchorUnits: "pixels" };
-
-  const textTabs: Record<string, unknown>[] = [
-    { anchorString: "/nm1/", ...a0, ...s9, ...common, tabLabel: "nom_prenoms", value: "Nom et Prénoms", required: "true", width: 365, height: 16 },
-    { anchorString: "/ss1/", ...a0, ...s9, ...common, tabLabel: "siege_social", value: "Adresse postale complète du siège social", required: "true", width: 391, height: 16 },
-    { anchorString: "/dn1/", ...a0, ...s9, ...common, tabLabel: "date_naissance", value: "JJ/MM/AAAA", required: "true", width: 241, height: 16 },
-    { anchorString: "/ad1/", ...a0, ...s9, ...common, tabLabel: "adresse_domicile", value: "Adresse postale complète personnelle", required: "true", width: 391, height: 16 },
-    { anchorString: "/py1/", ...a0, ...s9, ...common, tabLabel: "pays", value: "France / autre", required: "true", width: 241, height: 17 },
-    { anchorString: "/tl1/", ...a0, ...s9, ...common, tabLabel: "telephone", value: "Numéro de téléphone", required: "true", width: 206, height: 17 },
-    { anchorString: "/ml1/", ...a0, ...s9, ...common, tabLabel: "mail", value: "adresse mail", required: "true", width: 347, height: 18 },
-    { anchorString: "/lg1/", ...a0, ...s9, ...common, tabLabel: "adresse_logement", value: "Adresse du ou des biens exploités en LCD", required: "true", width: 563, height: 35 },
-    { anchorString: "/lg2/", anchorXOffset: "0", anchorYOffset: "5", anchorUnits: "pixels", ...s9, ...common, tabLabel: "adresse_logement_2", value: "Adresse du ou des biens exploités en LCD", required: "true", width: 520, height: 35 },
-    { anchorString: "/cm1/", anchorXOffset: "10", anchorYOffset: "10", anchorUnits: "pixels", ...s9, ...common, tabLabel: "commentaires", value: "", required: "false", width: 480, height: 80 },
-    { anchorString: "fait à", anchorXOffset: "30", anchorYOffset: "0", anchorUnits: "pixels", ...s8, ...common, tabLabel: "ville", value: "Ville", required: "true", width: 122, height: 15 },
-    { anchorString: "/sn1/", anchorXOffset: "0", anchorYOffset: "0", anchorUnits: "pixels", ...s8, ...common, tabLabel: "bon_pour_accord", value: "Bon pour accord", required: "true", width: 161, height: 16 },
-    { anchorString: "originaux le", anchorXOffset: "70", anchorYOffset: "0", anchorUnits: "pixels", ...s8, ...common, tabLabel: "date_signature", value: "Date", required: "true", width: 150, height: 15 },
-  ];
-
-  if (code.includes(".S")) {
-    textTabs.push({
-      anchorString: "/sr1/", ...a0, ...s9, ...common,
-      tabLabel: "siren", value: "Numéro SIREN", required: "true", width: 150, height: 15,
-    });
-  }
-
-  const initialHereTabs = Array.from({ length: pageCount }, (_, i) => ({
-    name: "InitialHere", tabLabel: `paraphe_page_${i + 1}`, scaleValue: "1",
-    optional: "false", documentId: "1", pageNumber: String(i + 1),
-    xPosition: "72", yPosition: "775",
-  }));
-
-  return {
-    name: `CE - ${code}`,
-    description: `Contract Engine — ${code}`,
-    emailSubject: "Contrat de conciergerie — Signature requise",
-    documents: [{ documentBase64: pdfBase64, name: `${code}.pdf`, fileExtension: "pdf", documentId: "1" }],
-    recipients: {
-      signers: [{
-        roleName: "PROPRIETAIRE", recipientId: "1", routingOrder: "1", requireIdLookup: "false",
-        tabs: {
-          textTabs,
-          signHereTabs: [{ anchorString: "/sn1/", anchorXOffset: "0", anchorYOffset: "65", anchorUnits: "pixels", scaleValue: "1.25", tabLabel: "signature_proprietaire" }],
-          initialHereTabs,
-        },
-      }],
-      carbonCopies: [{
-        roleName: "LETAHOST LLC", recipientId: "2", routingOrder: "2",
-        name: "Loïc CARDIN", email: "direction@conciergerie-letahost.com",
-        templateLocked: "true", templateRequired: "true",
-      }],
-    },
-    status: "created",
-  };
 }
 
 // ─── Route handler ───
@@ -131,7 +67,12 @@ export async function POST(request: NextRequest) {
 
         if (!contract.docusignTemplateId) {
           // A) First time — create template + PowerForm
-          const body = buildTemplateBody(contract.code, pdfBase64, pageCount);
+          const body = buildTemplateBody({
+            code: contract.code,
+            pdfBase64,
+            pageCount,
+            dureeType: contract.dureeType as "standard" | "courte",
+          });
 
           const createRes = await fetch(`${BASE_URL}/v2.1/accounts/${ACCOUNT_ID}/templates`, {
             method: "POST",
@@ -199,6 +140,10 @@ export async function POST(request: NextRequest) {
             const err = await updateRes.text();
             throw new Error(`Update template (${updateRes.status}): ${err.substring(0, 200)}`);
           }
+
+          // Apply envelope-level metadata (locks + emailSubject corrigé)
+          // — nécessaire sur les 18 templates existants créés avant le fix.
+          await updateTemplateMetadata(contract.docusignTemplateId);
 
           // Reactivate PowerForm (gets deactivated after template document update)
           if (contract.docusignPowerformId) {

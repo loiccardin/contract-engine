@@ -31,6 +31,13 @@ function selectContent(article: Article, contract: Contract): string | null {
         case "sans_menage": return article.contentSansMenage;
       }
       break;
+
+    case "duree":
+      switch (contract.dureeType) {
+        case "standard": return article.contentStandard;
+        case "courte":   return article.contentCourte;
+      }
+      break;
   }
 
   return null;

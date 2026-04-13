@@ -77,7 +77,7 @@ export default function PushPage() {
               <div>
                 <h2 className="text-xl font-semibold text-gray-900 tracking-tight">Push DocuSign termine</h2>
                 <p className="text-sm text-gray-500">
-                  Version {data.version_number} — {okCount}/18 ok — {new Date(data.pushed_at).toLocaleString("fr-FR")}
+                  Version {data.version_number} — {okCount}/24 ok — {new Date(data.pushed_at).toLocaleString("fr-FR")}
                 </p>
               </div>
             </div>

@@ -3,7 +3,7 @@ export interface Article {
   code: string;
   title: string;
   orderIndex: number;
-  scope: "common" | "commission" | "statut" | "menage";
+  scope: "common" | "commission" | "statut" | "menage" | "duree";
   contentCommon: string | null;
   contentClassique: string | null;
   contentStudio: string | null;
@@ -13,6 +13,8 @@ export interface Article {
   contentZonesCj: string | null;
   contentZonesR: string | null;
   contentSansMenage: string | null;
+  contentStandard: string | null;
+  contentCourte: string | null;
   isPageBreakBefore: boolean;
   keepTogether: boolean;
   updatedAt: string;
@@ -24,6 +26,7 @@ export interface Contract {
   commissionType: "classique" | "studio" | "20pct";
   statutType: "particulier" | "societe";
   menageType: "zones_cj" | "zones_r" | "sans_menage";
+  dureeType: "standard" | "courte";
   googleDocId: string | null;
   docusignTemplateName: string | null;
   docusignPowerformId: string | null;

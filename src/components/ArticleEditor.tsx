@@ -10,6 +10,7 @@ const SCOPE_STYLE: Record<string, { badge: string; border: string; label: string
   commission: { badge: "bg-violet-50 text-violet-700",   border: "border-l-violet-400",  label: "Par commission" },
   statut:     { badge: "bg-blue-50 text-blue-700",       border: "border-l-blue-400",     label: "Par statut" },
   menage:     { badge: "bg-amber-50 text-amber-700",     border: "border-l-amber-400",    label: "Par ménage" },
+  duree:      { badge: "bg-rose-50 text-rose-700",       border: "border-l-rose-400",     label: "Par durée" },
 };
 
 interface ArticleEditorProps {

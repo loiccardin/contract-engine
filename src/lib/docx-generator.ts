@@ -83,6 +83,37 @@ function parseBulletText(line: string): string {
   return line.replace(/^[\s]*[*\-—·⁠]\s*/, "").trim();
 }
 
+// ─── Inline anchor markers (courte durée) ───
+// /pl1/ = plages de location (rectangle 35px placé par DocuSign)
+// /jr1/ = nombre de jours (text field inline)
+const INLINE_ANCHOR_RE = /\/(pl1|jr1)\//g;
+
+function hasInlineAnchor(line: string): boolean {
+  return /\/(pl1|jr1)\//.test(line);
+}
+
+function isStandaloneAnchor(line: string, marker: string): boolean {
+  return line.trim() === marker;
+}
+
+function renderInlineAnchorRuns(line: string, fontSize: number): TextRun[] {
+  const re = new RegExp(INLINE_ANCHOR_RE.source, "g");
+  const runs: TextRun[] = [];
+  let lastIdx = 0;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(line)) !== null) {
+    if (m.index > lastIdx) {
+      runs.push(new TextRun({ text: line.slice(lastIdx, m.index), font: FONTS.body, size: fontSize }));
+    }
+    runs.push(anchorTab(`/${m[1]}/`));
+    lastIdx = m.index + m[0].length;
+  }
+  if (lastIdx < line.length) {
+    runs.push(new TextRun({ text: line.slice(lastIdx), font: FONTS.body, size: fontSize }));
+  }
+  return runs;
+}
+
 // ─── Italic rendering for "la Partie" / "les Parties" ───
 
 function renderWithItalics(text: string, fontSize: number, bold: boolean, underline: boolean): TextRun[] {
@@ -193,6 +224,39 @@ function parseContent(content: string, articleCode: string, opts: ParseOptions):
         );
         needsPageBreakOnNext = false;
       }
+      continue;
+    }
+
+    // Inline anchors /pl1/ et /jr1/ (variantes courte durée — art_2_3)
+    // /pl1/ seul sur sa ligne → ligne dédiée d'anchor (DocuSign pose un rect 520×35)
+    // /jr1/ ou /pl1/ inline dans une phrase → mix texte + anchor invisible
+    if (hasInlineAnchor(trimmed)) {
+      if (isStandaloneAnchor(trimmed, "/pl1/")) {
+        // Ligne dédiée pour le rectangle DocuSign — espacement après pour réserver
+        // visuellement la place du field rendu (~35px) et éviter les chevauchements.
+        paragraphs.push(
+          new Paragraph({
+            spacing: { after: SPACING.afterParagraph, line: SPACING.lineBody },
+            keepLines: opts.keepTogether,
+            pageBreakBefore: needsPageBreakOnNext || undefined,
+            children: [anchorTab("/pl1/")],
+          }),
+          emptyParagraph(lineSpacing)
+        );
+        needsPageBreakOnNext = false;
+        continue;
+      }
+      // Inline (ex: "Soit /jr1/ jours")
+      paragraphs.push(
+        new Paragraph({
+          alignment: AlignmentType.JUSTIFIED,
+          spacing: { after: SPACING.afterParagraph, line: lineSpacing },
+          keepLines: opts.keepTogether,
+          pageBreakBefore: needsPageBreakOnNext || undefined,
+          children: renderInlineAnchorRuns(trimmed, FONT_SIZES.body),
+        })
+      );
+      needsPageBreakOnNext = false;
       continue;
     }
 
@@ -521,6 +585,35 @@ function buildAnnexeTable(content: string, pageBreak: boolean = false): Paragrap
   return paragraphs;
 }
 
+// ─── Auto-injection markers courte durée (art_2_3) ───
+
+/**
+ * Pour les variantes courte durée, Loïc écrit du texte normal dans l'éditeur —
+ * il ne voit jamais les markers /pl1/ /jr1/. Le generator transforme :
+ *
+ *   1. Après la ligne contenant "les périodes suivantes" → insère un espace
+ *      vide + /pl1/ invisible (blanc 2pt) pour y accrocher le rectangle
+ *      DocuSign (~35px).
+ *   2. Dans toute ligne "Soit (à compléter) jours" → remplace "(à compléter)"
+ *      par /jr1/ invisible, pour y accrocher le champ nombre de jours inline.
+ */
+function injectCourteDureeMarkers(content: string): string {
+  const lines = content.split("\n").map((line) =>
+    /\bSoit\b.*\(à compléter\).*\bjours\b/i.test(line)
+      ? line.replace(/\(à compléter\)/, "/jr1/")
+      : line
+  );
+
+  for (let i = 0; i < lines.length; i++) {
+    if (/les périodes suivantes\s*:?\s*$/i.test(lines[i].trim())) {
+      // Réserve ~35px pour le rectangle DocuSign posé sur /pl1/.
+      const insertBlock = ["", "", "/pl1/", "", ""];
+      return [...lines.slice(0, i + 1), ...insertBlock, ...lines.slice(i + 1)].join("\n");
+    }
+  }
+  return lines.join("\n");
+}
+
 // ─── Dynamic numbering ───
 
 /**
@@ -598,7 +691,6 @@ export async function generateDocx(
   assembledArticles: AssembledArticle[],
   contract: Contract
 ): Promise<Buffer> {
-  void contract;
   const tamponImage = loadImage("tampon-letahost.png");
 
   const children: Paragraph[] = [];
@@ -627,6 +719,11 @@ export async function generateDocx(
       let content = article.content;
       if (article.sectionNumber) {
         content = applyDynamicNumbering(content, article.sectionNumber);
+      }
+      // Courte durée: injecter automatiquement les markers /pl1/ /jr1/
+      // dans art_2_3 (invisibles pour Loïc dans l'éditeur).
+      if (article.code === "art_2_3" && contract.dureeType === "courte") {
+        content = injectCourteDureeMarkers(content);
       }
       children.push(...parseContent(content, article.code, {
         keepTogether: article.keepTogether,
