@@ -13,18 +13,12 @@ const prisma = new PrismaClient({ adapter });
  * Seed temporaire de art_2_3.contentCourte pour tester le rendu courte durée.
  * Loïc remplacera ce contenu via l'éditeur après validation visuelle.
  *
- * Stratégie : on copie le contentStandard et on insère le bloc spécifique
- * "courte durée" (rectangle /pl1/ + ligne /jr1/) au bon endroit, sans toucher
- * au reste de l'article.
+ * Le contenu ne contient PAS les markers /pl1/ /jr1/ — ceux-ci sont injectés
+ * automatiquement par docx-generator après la phrase "les périodes suivantes".
+ * Loïc ne voit que du texte normal dans l'éditeur.
  */
 
-const COURTE_BLOCK = `- Louer le LOGEMENT, durant l'année, pendant les périodes suivantes :
-
-/pl1/
-
-Soit /jr1/ jours
-
-Ci-après désignée la « Période de location du LOGEMENT »`;
+const COURTE_TEMP_BLOCK = `- Louer le LOGEMENT, durant l'année, pendant les périodes suivantes :`;
 
 async function main() {
   const art = await prisma.article.findUnique({ where: { code: "art_2_3" } });
@@ -32,26 +26,19 @@ async function main() {
   if (art.scope !== "duree") throw new Error(`art_2_3 scope='${art.scope}', attendu 'duree' (Phase 1 non appliquée ?)`);
   if (!art.contentStandard) throw new Error("art_2_3.contentStandard est NULL");
 
-  // Si déjà rempli, on n'écrase pas
-  if (art.contentCourte && art.contentCourte.includes("/pl1/")) {
-    console.log("art_2_3.contentCourte déjà rempli (contient /pl1/) — skip");
-    return;
-  }
-
-  // Texte temporaire : on prend tel quel le standard et on ajoute le bloc
-  // courte durée à la suite du préambule de l'article.
-  // L'objectif est uniquement de tester visuellement le rendu DOCX/DocuSign.
+  // Réécriture propre (sans markers) — écrase toute version précédente qui
+  // contiendrait /pl1/ ou /jr1/ (le generator injecte ces markers à la volée).
   const tempContent = `${art.contentStandard.trim()}
 
-${COURTE_BLOCK}`;
+${COURTE_TEMP_BLOCK}`;
 
   await prisma.article.update({
     where: { code: "art_2_3" },
     data: { contentCourte: tempContent },
   });
 
-  console.log("art_2_3.contentCourte rempli (contenu temporaire avec /pl1/ et /jr1/)");
-  console.log(`   Longueur: ${tempContent.length} chars`);
+  const hadMarkers = art.contentCourte?.includes("/pl1/") || art.contentCourte?.includes("/jr1/");
+  console.log(`art_2_3.contentCourte rempli${hadMarkers ? " (markers retirés)" : ""} — ${tempContent.length} chars`);
 }
 
 main()

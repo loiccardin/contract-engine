@@ -585,6 +585,35 @@ function buildAnnexeTable(content: string, pageBreak: boolean = false): Paragrap
   return paragraphs;
 }
 
+// ─── Auto-injection markers courte durée (art_2_3) ───
+
+/**
+ * Pour les variantes courte durée, le texte de l'art_2_3 stocké en DB ne
+ * contient PAS les markers /pl1/ et /jr1/ — Loïc n'a pas à voir ces codes
+ * dans l'éditeur. Le generator les injecte automatiquement après la phrase
+ * de trigger "les périodes suivantes", sous la forme :
+ *   /pl1/
+ *   Soit /jr1/ jours
+ *   Ci-après désignée la « Période de location du LOGEMENT »
+ */
+function injectCourteDureeMarkers(content: string): string {
+  const lines = content.split("\n");
+  const insertBlock = [
+    "",
+    "/pl1/",
+    "",
+    "Soit /jr1/ jours",
+    "",
+    "Ci-après désignée la « Période de location du LOGEMENT »",
+  ];
+  for (let i = 0; i < lines.length; i++) {
+    if (/les périodes suivantes\s*:?\s*$/i.test(lines[i].trim())) {
+      return [...lines.slice(0, i + 1), ...insertBlock, ...lines.slice(i + 1)].join("\n");
+    }
+  }
+  return content;
+}
+
 // ─── Dynamic numbering ───
 
 /**
@@ -662,7 +691,6 @@ export async function generateDocx(
   assembledArticles: AssembledArticle[],
   contract: Contract
 ): Promise<Buffer> {
-  void contract;
   const tamponImage = loadImage("tampon-letahost.png");
 
   const children: Paragraph[] = [];
@@ -691,6 +719,11 @@ export async function generateDocx(
       let content = article.content;
       if (article.sectionNumber) {
         content = applyDynamicNumbering(content, article.sectionNumber);
+      }
+      // Courte durée: injecter automatiquement les markers /pl1/ /jr1/
+      // dans art_2_3 (invisibles pour Loïc dans l'éditeur).
+      if (article.code === "art_2_3" && contract.dureeType === "courte") {
+        content = injectCourteDureeMarkers(content);
       }
       children.push(...parseContent(content, article.code, {
         keepTogether: article.keepTogether,
