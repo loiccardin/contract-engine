@@ -194,7 +194,7 @@ Exception : `GET /api/versions` n'a pas d'auth (stub). Les routes `/api/auth/*` 
 
 **Traitement :**
 1. Recupere tous les articles (tries par order_index) et les 24 contrats `WHERE document_type = 'contrat'`
-2. Archive l'eventuel dossier "(en cours)" precedent dans `GOOGLE_DRIVE_CONTRATS_ROOT_FOLDER_ID` : retire " (en cours)" du nom et deplace dans `GOOGLE_DRIVE_ARCHIVE_FOLDER_ID` (dossier partagé avec les promesses)
+2. Archive l'eventuel dossier "(en cours)" precedent dans `GOOGLE_DRIVE_CONTRATS_ROOT_FOLDER_ID` : retire " (en cours)" du nom et deplace dans `GOOGLE_DRIVE_CONTRATS_ARCHIVE_FOLDER_ID` (dossier d'archives dédié aux contrats, distinct de celui des promesses)
 3. Cree un nouveau dossier `MODELES CONTRATS - MAJ DU JJ/MM/AA (en cours)`
 4. Pour chaque contrat (x24) : `assembleContract(..., "contrat")` -> `generateDocx(..., "contrat")` -> upload DOCX natif (nom = code, ex `C1.P.CJ.docx`)
 5. Met a jour `google_doc_id` dans la table contracts
