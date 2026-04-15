@@ -43,6 +43,12 @@ export interface AssembledArticle {
   isPageBreakBefore: boolean;
   keepTogether: boolean;
   sectionNumber: string | null;
+  /**
+   * Recopie le `document_type` de l'article source : utile au generator pour
+   * décider, par exemple, de ne pas appliquer `CONTRAT_TEXT_REMAPPING` sur les
+   * `contrat_only` (leurs "ANNEXE 1/2" sont déjà la numérotation du contrat).
+   */
+  articleDocumentType: "all" | "promesse_only" | "contrat_only";
 }
 
 export interface ApiResponse<T> {

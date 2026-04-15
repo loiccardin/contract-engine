@@ -40,12 +40,25 @@ export const CONTRAT_TEXT_REMAPPING: Array<[string, string]> = [
   ["article 2.5.3",      "article 5.3"],
   ["article 2.5",        "article 5"],
   ["article 2.8",        "article 8"],
-  ["Annexe 1",           "Annexe 2"],
-  ["Annexe 2",           "Annexe 4"],
+
+  // Renvois aux annexes — sentinelles temporaires pour éviter la double
+  // transformation "Annexe 1" → "Annexe 2" puis "Annexe 2" → "Annexe 4".
+  // Variante MAJUSCULES gérée séparément pour les titres.
+  ["ANNEXE 1",           "\u0001ANX2\u0001"],
+  ["ANNEXE 2",           "\u0001ANX4\u0001"],
+  ["Annexe 1",           "\u0001anx2\u0001"],
+  ["Annexe 2",           "\u0001anx4\u0001"],
+  ["\u0001ANX2\u0001",   "ANNEXE 2"],
+  ["\u0001ANX4\u0001",   "ANNEXE 4"],
+  ["\u0001anx2\u0001",   "Annexe 2"],
+  ["\u0001anx4\u0001",   "Annexe 4"],
 
   // B) Reformulations textuelles
   ["envisage de confier",                "entend confier"],
   ["Contrat de Prestation de Services",  "présent Contrat"],
+
+  // Bloc signature — plus de "cachet LETAHOST" dans les contrats
+  ["Bon pour accord et cachet LETAHOST", "Bon pour accord et signature du PRESTATAIRE"],
 
   // C) Titre du document
   ["PROMESSE DE CONTRAT",        "CONTRAT DE PRESTATIONS DE SERVICES"],

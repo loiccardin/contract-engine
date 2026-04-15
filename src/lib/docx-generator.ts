@@ -168,6 +168,13 @@ function renderWithItalics(text: string, fontSize: number, bold: boolean, underl
 interface ParseOptions {
   keepTogether: boolean;
   isOwnerFields?: boolean;
+  /**
+   * Compacte les paragraphes d'un bloc d'en-tête société (pas d'espace
+   * après, interligne simple). Utilisé pour `en_tete_prestataire_contrat`
+   * et le bloc société du `annexe_mandat_debours` pour que l'en-tête tienne
+   * sur une page.
+   */
+  isCompactFields?: boolean;
   pageBreakBefore?: boolean;  // apply pageBreakBefore on the first paragraph
 }
 
@@ -385,10 +392,29 @@ function parseContent(content: string, articleCode: string, opts: ParseOptions):
       continue;
     }
 
+    // Titres d'annexes — centrés, MAJUSCULES, bold. Appliqué uniquement aux
+    // contrats : la promesse de référence rend "ANNEXE 1 : ÉQUIPEMENTS" en
+    // justifié, on préserve ce comportement.
+    if (currentDocumentType === "contrat" && /^ANNEXE\s+\d+\s*[-:–]/i.test(trimmed)) {
+      paragraphs.push(
+        new Paragraph({
+          alignment: AlignmentType.CENTER,
+          spacing: { before: 200, after: 200, line: lineSpacing },
+          keepNext: true, keepLines: true,
+          pageBreakBefore: needsPageBreakOnNext || undefined,
+          children: [new TextRun({ text: trimmed, font: FONTS.title, size: FONT_SIZES.articleTitle, bold: true, underline: {} })],
+        })
+      );
+      needsPageBreakOnNext = false;
+      lastWasTitle = true;
+      continue;
+    }
+
     // Bold structural lines
     const isBoldLine =
       trimmed === "ENTRE LES SOUSSIGNÉS" || trimmed === "LE PROPRIÉTAIRE" ||
       trimmed === "ET" || trimmed.startsWith("LETAHOST LLC") ||
+      trimmed === "LE MANDANT" || trimmed === "LE MANDATAIRE" ||
       trimmed === "D'UNE PART" || trimmed === "D'AUTRE PART" ||
       trimmed.startsWith("IL EST PRÉALABLEMENT RAPPELÉ") || trimmed.startsWith("CECI EXPOSÉ");
 
@@ -396,7 +422,11 @@ function parseContent(content: string, articleCode: string, opts: ParseOptions):
       trimmed === "ENTRE LES SOUSSIGNÉS" || trimmed === "ET" ||
       trimmed.startsWith("IL EST PRÉALABLEMENT RAPPELÉ") || trimmed.startsWith("CECI EXPOSÉ");
 
-    const isBigTitle = trimmed === "PROMESSE DE CONTRAT" || trimmed === "DE PRESTATION DE SERVICES" || trimmed.startsWith("CONCIERGERIE");
+    const isBigTitle =
+      trimmed === "PROMESSE DE CONTRAT" ||
+      trimmed === "DE PRESTATION DE SERVICES" ||
+      trimmed === "CONTRAT DE PRESTATIONS DE SERVICES" ||
+      trimmed.startsWith("CONCIERGERIE");
     const isCentered = isBigTitle;
 
     let fontSize: number = FONT_SIZES.body;
@@ -410,10 +440,18 @@ function parseContent(content: string, articleCode: string, opts: ParseOptions):
       ? renderWithItalics(trimmed, fontSize, bold, isUnderlined)
       : [new TextRun({ text: trimmed, font: FONTS.body, size: fontSize, bold, underline: isUnderlined ? {} : undefined })];
 
+    // En mode compact, pas de gap après paragraphe sur les lignes de champs
+    // (Nom société, Capital, RCS, …) — garde un gap normal sur les lignes
+    // structurelles (ENTRE LES SOUSSIGNÉS, D'UNE PART, …).
+    const isStructural = isBoldLine || isCentered;
+    const afterParagraph = (opts.isCompactFields && !isStructural)
+      ? 0
+      : SPACING.afterParagraph;
+
     paragraphs.push(
       new Paragraph({
         alignment,
-        spacing: { after: SPACING.afterParagraph, line: lineSpacing },
+        spacing: { after: afterParagraph, line: lineSpacing },
         keepLines: opts.keepTogether,
         pageBreakBefore: needsPageBreakOnNext || undefined,
         children,
@@ -508,14 +546,20 @@ function buildSignatureBlock(content: string, tamponImage: Buffer, pageBreak: bo
     }
   }
 
-  // /sn1/ on its own line below "Bon pour accord"
+  // /sn1/ on its own line below "Bon pour accord" (invisible en contrat via anchorTab)
   paras.push(
     new Paragraph({ spacing: { before: 200 }, keepNext: true, keepLines: true, children: [anchorTab("/sn1/")] }),
-    new Paragraph({
-      alignment: AlignmentType.RIGHT, keepLines: true,
-      children: [new ImageRun({ data: tamponImage, transformation: { width: SIGNATURE.tamponWidthPx, height: SIGNATURE.tamponHeightPx }, type: "png" })],
-    })
   );
+  // Tampon LETAHOST — uniquement sur les promesses ; les contrats ont un
+  // prestataire générique, pas LetaHost, donc pas de sceau préimprimé.
+  if (currentDocumentType !== "contrat") {
+    paras.push(
+      new Paragraph({
+        alignment: AlignmentType.RIGHT, keepLines: true,
+        children: [new ImageRun({ data: tamponImage, transformation: { width: SIGNATURE.tamponWidthPx, height: SIGNATURE.tamponHeightPx }, type: "png" })],
+      })
+    );
+  }
   return paras;
 }
 
@@ -527,13 +571,18 @@ function buildAnnexeTable(content: string, pageBreak: boolean = false): Paragrap
   const col3 = 3829;
   const tableWidth = col1 + col2 + col3;
 
+  // Titre "ANNEXE 2" pour les promesses, "ANNEXE 4" pour les contrats (après remap)
+  const annexeTitle = currentDocumentType === "contrat"
+    ? "ANNEXE 4 - GRILLE ESTIMATIVE MÉNAGE"
+    : "ANNEXE 2 - GRILLE ESTIMATIVE MÉNAGE";
+
   paragraphs.push(
     new Paragraph({
       alignment: AlignmentType.CENTER,
       spacing: { before: 200, after: 200 },
       keepNext: true, keepLines: true,
       pageBreakBefore: pageBreak || undefined,
-      children: [new TextRun({ text: "ANNEXE 2 - GRILLE ESTIMATIVE MÉNAGE", font: FONTS.title, size: FONT_SIZES.articleTitle, bold: true, underline: {} })],
+      children: [new TextRun({ text: annexeTitle, font: FONTS.title, size: FONT_SIZES.articleTitle, bold: true, underline: {} })],
     })
   );
 
@@ -643,10 +692,11 @@ function buildContratSectionHeader(title: string, pageBreakBefore: boolean): Par
 
 function buildSepaImageAnnexe(title: string, pageBreak: boolean): Paragraph[] {
   const sepaImage = loadImage("mandat-sepa.jpg");
-  // Largeur utile ≈ 9029 twips ≈ 600px @ 96 DPI. Hauteur proportionnelle au ratio
-  // de l'image source (mandat SEPA standard portrait — ~560×800).
-  const widthPx = 600;
-  const heightPx = 850;
+  // L'image source fait 1224×1584 (ratio 1.294). Page A4 utile ≈ 160mm × 225mm.
+  // On réduit la hauteur pour laisser la place au titre sur la même page :
+  // 540px (largeur) × 700px (hauteur) conserve le ratio et tient confortablement.
+  const widthPx = 540;
+  const heightPx = 700;
   return [
     new Paragraph({
       alignment: AlignmentType.CENTER,
@@ -657,6 +707,7 @@ function buildSepaImageAnnexe(title: string, pageBreak: boolean): Paragraph[] {
     }),
     new Paragraph({
       alignment: AlignmentType.CENTER,
+      keepLines: true,
       children: [new ImageRun({ data: sepaImage, transformation: { width: widthPx, height: heightPx }, type: "jpg" })],
     }),
   ];
@@ -791,7 +842,10 @@ export async function generateDocx(
     if (article.code === "art_2_3" && contract.dureeType === "courte") {
       content = injectCourteDureeMarkers(content);
     }
-    if (documentType === "contrat") {
+    if (documentType === "contrat" && article.articleDocumentType !== "contrat_only") {
+      // Les articles `contrat_only` sont déjà écrits avec la numérotation
+      // et le vocabulaire du contrat — pas besoin (et danger) de remapper
+      // leur "ANNEXE 1" en "ANNEXE 2".
       content = applyContratTextRemap(content);
     }
 
@@ -815,6 +869,9 @@ export async function generateDocx(
       children.push(...parseContent(content, article.code, {
         keepTogether: article.keepTogether,
         isOwnerFields: article.code === "en_tete_proprietaire",
+        isCompactFields:
+          article.code === "en_tete_prestataire_contrat" ||
+          article.code === "annexe_mandat_debours",
       }));
     } else {
       children.push(...parseContent(content, article.code, {

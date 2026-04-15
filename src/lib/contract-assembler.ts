@@ -163,5 +163,6 @@ export function assembleContract(
     isPageBreakBefore: article.isPageBreakBefore,
     keepTogether: article.keepTogether,
     sectionNumber: sectionNumbers.get(article.code) ?? null,
+    articleDocumentType: article.documentType,
   }));
 }
