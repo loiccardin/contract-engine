@@ -23,6 +23,7 @@ import {
   CONTRAT_TEXT_REMAPPING,
   PROTECTED_REFERENCES,
   CONTRAT_TITLE_REMAPPING,
+  CONTRAT_SUBTITLE_REMAPPING,
 } from "@/config/contrat-remapping";
 import type { DocumentType } from "./contract-assembler";
 
@@ -182,9 +183,13 @@ function parseContent(content: string, articleCode: string, opts: ParseOptions):
   const paragraphs: Paragraph[] = [];
   const lines = content.split("\n");
   const isOwner = articleCode === "en_tete_proprietaire";
-  const lineSpacing = (opts.isOwnerFields || isOwner) ? SPACING.lineFieldsOwner : SPACING.lineBody;
+  // `isCompactFields` prime : mode contrat — interligne simple même sur l'owner.
+  const lineSpacing = opts.isCompactFields
+    ? SPACING.lineBody
+    : ((opts.isOwnerFields || isOwner) ? SPACING.lineFieldsOwner : SPACING.lineBody);
 
   let lastWasTitle = false;
+  let lastWasEmpty = false;
   let needsPageBreakOnNext = opts.pageBreakBefore || false;
 
   for (let i = 0; i < lines.length; i++) {
@@ -194,12 +199,17 @@ function parseContent(content: string, articleCode: string, opts: ParseOptions):
     if (!trimmed) {
       // Skip empty lines that follow a title — prevents keepNext binding to empty paragraph
       if (lastWasTitle) continue;
+      // En mode compact, collapse les lignes vides consécutives à une seule
+      // pour que l'en-tête (propriétaire / prestataire / mandat) tienne.
+      if (opts.isCompactFields && lastWasEmpty) continue;
       paragraphs.push(emptyParagraph(lineSpacing));
+      lastWasEmpty = true;
       continue;
     }
 
-    // Reset title flag for non-empty lines
+    // Reset title/empty flags for non-empty lines
     lastWasTitle = false;
+    lastWasEmpty = false;
 
     // ARTICLE headers — keepNext + keepLines, space_before for separation
     if (isArticleHeader(trimmed)) {
@@ -330,7 +340,7 @@ function parseContent(content: string, articleCode: string, opts: ParseOptions):
             paragraphs.push(
               new Paragraph({
                 alignment: AlignmentType.JUSTIFIED,
-                spacing: { after: 0, line: SPACING.lineFieldsOwner },
+                spacing: { after: 0, line: lineSpacing },
                 keepLines: opts.keepTogether,
                 children: [
                   new TextRun({ text: before, font: FONTS.body, size: FONT_SIZES.body }),
@@ -344,7 +354,7 @@ function parseContent(content: string, articleCode: string, opts: ParseOptions):
             paragraphs.push(
               new Paragraph({
                 alignment: AlignmentType.JUSTIFIED,
-                spacing: { after: 0, line: SPACING.lineFieldsOwner },
+                spacing: { after: 0, line: lineSpacing },
                 keepLines: opts.keepTogether,
                 children: [new TextRun({ text: trimmed, font: FONTS.body, size: FONT_SIZES.body })],
               }),
@@ -357,7 +367,7 @@ function parseContent(content: string, articleCode: string, opts: ParseOptions):
             paragraphs.push(
               new Paragraph({
                 alignment: AlignmentType.JUSTIFIED,
-                spacing: { after: 0, line: SPACING.lineFieldsOwner },
+                spacing: { after: 0, line: lineSpacing },
                 keepLines: opts.keepTogether,
                 children: [
                   new TextRun({ text: trimmed + " ", font: FONTS.body, size: FONT_SIZES.body }),
@@ -670,10 +680,38 @@ function applyContratTextRemap(content: string): string {
   for (const [from, to] of CONTRAT_TEXT_REMAPPING) {
     s = s.split(from).join(to);
   }
+  // Renumérotation des sous-titres dans le contenu (2.2.1. → 2.1., 2.4.1. → 4.1., …).
+  // Appliqué après CONTRAT_TEXT_REMAPPING pour ne pas entrer en conflit avec les
+  // transformations "paragraphe 2.2.1" (préfixées).
+  for (const [from, to] of CONTRAT_SUBTITLE_REMAPPING) {
+    s = s.split(from).join(to);
+  }
   for (const [sentinel, original] of Object.entries(protectedMap)) {
     s = s.split(sentinel).join(original);
   }
   return s;
+}
+
+/**
+ * Retire la première ligne non-vide d'un content si elle est un sous-titre
+ * top-level "2.X." / "2.X" (ex "2.3. Obligations du propriétaire") —
+ * redondant avec le header de section MAJUSCULES généré par
+ * `buildContratSectionHeader`. Les sous-sous-titres 2.X.Y ne sont pas touchés.
+ */
+function stripRedundantTopTitle(content: string): string {
+  const lines = content.split("\n");
+  let i = 0;
+  while (i < lines.length && lines[i].trim() === "") i++;
+  if (i >= lines.length) return content;
+  const first = lines[i].trim();
+  // Matche "2.X." ou "2.X" (top-level) suivi d'un mot — exclut "2.X.Y"
+  if (/^2\.\d+\.?\s+\S/.test(first) && !/^2\.\d+\.\d+/.test(first)) {
+    lines.splice(i, 1);
+    // Consomme aussi la ligne vide qui suivait le titre, pour éviter un gap
+    if (i < lines.length && lines[i].trim() === "") lines.splice(i, 1);
+    return lines.join("\n");
+  }
+  return content;
 }
 
 // ─── Header de section pour contrats (titres MAJUSCULES) ───
@@ -865,11 +903,14 @@ export async function generateDocx(
       children.push(...buildSepaImageAnnexe("ANNEXE 3 : MANDAT SEPA", needsPageBreak));
     } else if (documentType === "contrat" && CONTRAT_TITLE_REMAPPING[article.code]) {
       // Header de section MAJUSCULES (RÉMUNÉRATION, OBLIGATIONS…) + corps
+      // privé du sous-titre top-level redondant avec le header.
       children.push(buildContratSectionHeader(article.title, needsPageBreak && children.length > 0));
-      children.push(...parseContent(content, article.code, {
+      const body = stripRedundantTopTitle(content);
+      children.push(...parseContent(body, article.code, {
         keepTogether: article.keepTogether,
-        isOwnerFields: article.code === "en_tete_proprietaire",
+        isOwnerFields: article.code === "en_tete_proprietaire" && documentType !== "contrat",
         isCompactFields:
+          (article.code === "en_tete_proprietaire" && documentType === "contrat") ||
           article.code === "en_tete_prestataire_contrat" ||
           article.code === "annexe_mandat_debours",
       }));

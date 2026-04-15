@@ -91,14 +91,14 @@ export const PROTECTED_REFERENCES: string[] = [
  * comme des headers de section (gras + espacement avant plus grand).
  */
 export const CONTRAT_TITLE_REMAPPING: Record<string, string> = {
-  art_2_2_intro:    "SERVICES ASSURÉS PAR LE PRESTATAIRE",
-  art_2_3:          "OBLIGATIONS DU PROPRIÉTAIRE",
-  art_2_4_1_intro:  "RÉMUNÉRATION DU PRESTATAIRE",
-  art_2_5:          "EXCLUSIVITÉ - DURÉE – RÉSILIATION",
-  art_2_6:          "RESPONSABILITÉ",
-  art_2_7:          "CESSION DU CONTRAT",
-  art_2_8:          "FIN DU CONTRAT",
-  art_2_9:          "CONFIDENTIALITÉ ET NON-DÉNIGREMENT",
+  art_2_2_intro:    "2. SERVICES ASSURÉS PAR LE PRESTATAIRE",
+  art_2_3:          "3. OBLIGATIONS DU PROPRIÉTAIRE",
+  art_2_4_1_intro:  "4. RÉMUNÉRATION DU PRESTATAIRE",
+  art_2_5:          "5. EXCLUSIVITÉ - DURÉE – RÉSILIATION",
+  art_2_6:          "6. RESPONSABILITÉ",
+  art_2_7:          "7. CESSION DU CONTRAT",
+  art_2_8:          "8. FIN DU CONTRAT",
+  art_2_9:          "10. CONFIDENTIALITÉ ET NON-DÉNIGREMENT",
 };
 
 /**
