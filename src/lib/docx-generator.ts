@@ -203,18 +203,17 @@ function parseContent(content: string, articleCode: string, opts: ParseOptions):
   const lines = content.split("\n");
   const isOwner = articleCode === "en_tete_proprietaire";
   const isContrat = currentDocumentType === "contrat";
-  // CORR 8 — interligne 1.15 (276 twips) pour le corps du contrat, vs 240 pour la
-  // promesse. `isCompactFields` prime sur l'owner (blocs header serrés).
+  // Interligne corps : 1.1 pour le contrat (264 twips, doc compact 27 pages),
+  // 1.0 pour la promesse (240). `isCompactFields` prime sur l'owner.
   const lineSpacing = opts.isCompactFields
     ? SPACING.lineBody
     : isContrat
-      ? 276
+      ? 264
       : ((opts.isOwnerFields || isOwner) ? SPACING.lineFieldsOwner : SPACING.lineBody);
-  // Contrat : espace après paragraphe normal plus petit (120 vs 200 promesse).
-  const afterNormal = isContrat ? 120 : SPACING.afterParagraph;
-  // Contrat : après ARTICLE / sous-titre = 200, sinon 60 comme avant (titres serrés).
-  const afterTitle = isContrat ? 200 : 60;
-  const afterSubtitle = isContrat ? 120 : 60;
+  // Contrat : espacements compacts pour respecter le gabarit du modèle.
+  const afterNormal = isContrat ? 80 : SPACING.afterParagraph;
+  const afterTitle = isContrat ? 140 : 60;
+  const afterSubtitle = isContrat ? 80 : 60;
 
   let lastWasTitle = false;
   let lastWasEmpty = false;
@@ -266,8 +265,13 @@ function parseContent(content: string, articleCode: string, opts: ParseOptions):
       const needsDash = currentDocumentType === "contrat" && isThreeLevel;
       const titleText = needsDash ? `${number.trimEnd()} - ${rest}` : trimmed;
       const numberDisplay = needsDash ? `${number.trimEnd()} - ` : number;
+      // FIX 3 — en mode contrat, les sous-sous-sections (3-niveaux avec tiret)
+      // sont rendues comme des titres FULL BOLD même si le texte dépasse 60 chars.
+      // La référence montre "2.1.1. - Services de ménage effectués…" en gras complet.
+      const forceTitleOnly = needsDash;
+      const effectiveIsTitleOnly = isTitleOnly || forceTitleOnly;
 
-      if (isTitleOnly) {
+      if (effectiveIsTitleOnly) {
         paragraphs.push(
           new Paragraph({
             alignment: AlignmentType.JUSTIFIED,
@@ -548,7 +552,10 @@ function parseContent(content: string, articleCode: string, opts: ParseOptions):
     // (Nom société, Capital, RCS, …) — garde un gap normal sur les lignes
     // structurelles (ENTRE LES SOUSSIGNÉS, D'UNE PART, …).
     const isStructural = isBoldLine || isCentered;
-    const afterParagraph = (opts.isCompactFields && !isStructural)
+    const hasPlaceholder = highlight === "yellow";
+    // Contrat : lignes à remplir (placeholder) = after=0 (pas de gap inutile
+    // entre deux champs consécutifs), cohérent avec le modèle de référence.
+    const afterParagraph = (opts.isCompactFields && !isStructural) || (isContrat && hasPlaceholder)
       ? 0
       : afterNormal;
 
@@ -930,16 +937,24 @@ function applyDynamicNumbering(content: string, sectionNumber: string): string {
 
 // ─── ZIP post-processing ───
 
-async function injectTemplateHeaderFooter(docxBuffer: Buffer): Promise<Buffer> {
+async function injectTemplateHeaderFooter(docxBuffer: Buffer, documentType: DocumentType): Promise<Buffer> {
   const zip = await JSZip.loadAsync(docxBuffer);
 
   zip.file("word/header1.xml", loadTemplate("header1.xml"));
-  zip.file("word/footer1.xml", loadTemplate("footer1.xml"));
   zip.file("word/_rels/header1.xml.rels", loadTemplate("header1.xml.rels"));
-  zip.file("word/_rels/footer1.xml.rels", loadTemplate("footer1.xml.rels"));
-  zip.file("word/media/image5.png", loadTemplate("pixel-black.png"));
   zip.file("word/media/image2.png", loadTemplate("logo-header.png"));
-  zip.file("word/media/image1.jpg", loadTemplate("paraphe-footer.jpg"));
+
+  if (documentType === "contrat") {
+    // Pas de paraphe LC sur les contrats — footer = numéro de page uniquement.
+    zip.file("word/footer1.xml", loadTemplate("footer1-contrat.xml"));
+    zip.file("word/_rels/footer1.xml.rels", loadTemplate("footer1-contrat.xml.rels"));
+  } else {
+    // Promesse : footer standard avec paraphe LC + bandeau noir.
+    zip.file("word/footer1.xml", loadTemplate("footer1.xml"));
+    zip.file("word/_rels/footer1.xml.rels", loadTemplate("footer1.xml.rels"));
+    zip.file("word/media/image5.png", loadTemplate("pixel-black.png"));
+    zip.file("word/media/image1.jpg", loadTemplate("paraphe-footer.jpg"));
+  }
 
   const result = await zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });
   return Buffer.from(result);
@@ -1032,5 +1047,5 @@ export async function generateDocx(
   });
 
   const rawBuffer = await Packer.toBuffer(doc);
-  return await injectTemplateHeaderFooter(Buffer.from(rawBuffer));
+  return await injectTemplateHeaderFooter(Buffer.from(rawBuffer), documentType);
 }
