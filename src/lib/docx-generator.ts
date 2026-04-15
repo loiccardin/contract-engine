@@ -255,7 +255,7 @@ function parseContent(content: string, articleCode: string, opts: ParseOptions):
           spacing: { before: 400, after: afterTitle, line: lineSpacing },
           keepNext: true, keepLines: true,
           pageBreakBefore: needsPageBreakOnNext || undefined,
-          children: [new TextRun({ text: trimmed, font: FONTS.title, size: FONT_SIZES.articleTitle, bold: true })],
+          children: [new TextRun({ text: trimmed, font: FONTS.title, size: FONT_SIZES.articleTitle, bold: true, underline: {} })],
         })
       );
       needsPageBreakOnNext = false;
@@ -290,11 +290,11 @@ function parseContent(content: string, articleCode: string, opts: ParseOptions):
       const needsDash = currentDocumentType === "contrat" && isThreeLevel;
       const titleText = needsDash ? `${number.trimEnd()} - ${rest}` : trimmed;
       const numberDisplay = needsDash ? `${number.trimEnd()} - ` : number;
-      // FIX 4 — en mode contrat, TOUTES les sous-sections (2 et 3 niveaux)
-      // sont rendues FULL BOLD selon le brief, quelle que soit la longueur
-      // du texte. Les 2-niveaux courts (4.1. Commission) étaient déjà bold
-      // via isTitleOnly ; cette règle étend le bold aux longs (5.2, 12.1, …).
-      const forceTitleOnly = isContrat;
+      // En contrat, seules les sous-sous-sections 3-niveaux avec tiret
+      // (2.1.1. - …, 2.5.1. - …) sont FULL BOLD, conformément au modèle.
+      // Les 2-niveaux longs (5.2 …, 12.1 …) gardent "numéro bold + reste normal" ;
+      // les 2-niveaux courts (4.1. Commission) sont full bold via isTitleOnly.
+      const forceTitleOnly = needsDash;
       const effectiveIsTitleOnly = isTitleOnly || forceTitleOnly;
 
       if (effectiveIsTitleOnly) {
@@ -853,12 +853,12 @@ function stripRedundantTopTitle(content: string): string {
 function buildContratSectionHeader(title: string, pageBreakBefore: boolean): Paragraph {
   return new Paragraph({
     alignment: AlignmentType.JUSTIFIED,
-    // FIX 5 — 400 twips avant chaque titre d'article pour créer un saut visuel
+    // 400 twips avant chaque titre d'article pour créer un saut visuel
     // net entre la fin de l'article précédent et le début du suivant.
     spacing: { before: 400, after: 140, line: SPACING.lineBody },
     keepNext: true, keepLines: true,
     pageBreakBefore: pageBreakBefore || undefined,
-    children: [new TextRun({ text: title, font: FONTS.title, size: FONT_SIZES.articleTitle, bold: true })],
+    children: [new TextRun({ text: title, font: FONTS.title, size: FONT_SIZES.articleTitle, bold: true, underline: {} })],
   });
 }
 
