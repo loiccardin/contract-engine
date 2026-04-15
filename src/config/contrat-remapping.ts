@@ -60,11 +60,23 @@ export const CONTRAT_TEXT_REMAPPING: Array<[string, string]> = [
   // Bloc signature — plus de "cachet LETAHOST" dans les contrats
   ["Bon pour accord et cachet LETAHOST", "Bon pour accord et signature du PRESTATAIRE"],
 
+  // Placeholders à remplir — harmonisation sur 1 em-dash + 26 tirets simples,
+  // à la place des anciennes séquences d'em-dashes collés ("———————").
+  // Toutes longueurs d'em-dashes (7/6/5/4) collapsent vers le même pattern.
+  ["———————", "\u2014" + "-".repeat(26)],
+
   // C) Titre du document
   ["PROMESSE DE CONTRAT",        "CONTRAT DE PRESTATIONS DE SERVICES"],
   ["DE PRESTATION DE SERVICES",  ""],
   ["CONCIERGERIE",               "CONCIERGERIE - ACTE ITÉRATIF -"],
 ];
+
+/**
+ * Pattern unique du placeholder "à remplir" : un em-dash (U+2014) suivi
+ * de 26 tirets simples (U+002D). Repris tel quel par le générateur et
+ * le seed DB pour que le rendu reste cohérent entre les deux.
+ */
+export const CONTRAT_PLACEHOLDER = "\u2014" + "-".repeat(26);
 
 /**
  * Renvois aux articles du Code civil / Code général des impôts.
@@ -109,20 +121,24 @@ export const CONTRAT_TITLE_REMAPPING: Record<string, string> = {
  * dans CONTRAT_TITLE_REMAPPING (sous-sections 2.X.Y → X.Y).
  */
 export const CONTRAT_SUBTITLE_REMAPPING: Array<[string, string]> = [
-  ["2.2.1.1.", "2.1.1."],
-  ["2.2.1.2.", "2.1.2."],
-  ["2.2.1.3.", "2.1.3."],
+  // Sous-sous-sections "2.2.X.Y" — transformées via sentinelles pour ne pas être
+  // re-mappées par la règle "2.5.X" → "5.X" qui vise l'article "2.5 EXCLUSIVITÉ".
+  // Ex : "2.2.5.1" (annonces plateformes) → "2.5.1" (pas "5.1").
+  ["2.2.1.1.", "\u0001SUB211\u0001"],
+  ["2.2.1.2.", "\u0001SUB212\u0001"],
+  ["2.2.1.3.", "\u0001SUB213\u0001"],
+  ["2.2.5.1.", "\u0001SUB251\u0001"],
+  ["2.2.5.2.", "\u0001SUB252\u0001"],
+  ["2.2.5.3.", "\u0001SUB253\u0001"],
   ["2.2.1.",   "2.1."],
   ["2.2.2.",   "2.2."],
   ["2.2.3.",   "2.3."],
   ["2.2.4.",   "2.4."],
-  ["2.2.5.1.", "2.5.1."],
-  ["2.2.5.2.", "2.5.2."],
-  ["2.2.5.3.", "2.5.3."],
   ["2.2.5.",   "2.5."],
   ["2.2.6.",   "2.6."],
   ["2.2.7.",   "2.7."],
-  ["2.2.8",    "2.8"],
+  ["2.2.8.",   "2.8."],
+  ["2.2.8 ",   "2.8. "], // CORR 9 : ancienne typo "2.8" sans point → force le point
   ["2.4.1.",   "4.1."],
   ["2.4.2.",   "4.2."],
   ["2.4.3.",   "4.3."],
@@ -133,4 +149,12 @@ export const CONTRAT_SUBTITLE_REMAPPING: Array<[string, string]> = [
   ["2.5.4.",   "5.4."],
   ["2.5.5.",   "5.5."],
   ["2.5.6.",   "5.6."],
+  // Restauration des sentinelles — les sous-sous-sections annonces/menage
+  // retrouvent leur numérotation correcte "2.X.Y".
+  ["\u0001SUB211\u0001", "2.1.1."],
+  ["\u0001SUB212\u0001", "2.1.2."],
+  ["\u0001SUB213\u0001", "2.1.3."],
+  ["\u0001SUB251\u0001", "2.5.1."],
+  ["\u0001SUB252\u0001", "2.5.2."],
+  ["\u0001SUB253\u0001", "2.5.3."],
 ];

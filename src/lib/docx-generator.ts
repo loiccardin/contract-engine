@@ -24,6 +24,7 @@ import {
   PROTECTED_REFERENCES,
   CONTRAT_TITLE_REMAPPING,
   CONTRAT_SUBTITLE_REMAPPING,
+  CONTRAT_PLACEHOLDER,
 } from "@/config/contrat-remapping";
 import type { DocumentType } from "./contract-assembler";
 
@@ -99,6 +100,24 @@ function isArticleHeader(line: string): boolean {
 
 function parseBulletText(line: string): string {
   return line.replace(/^[\s]*[*\-—·⁠]\s*/, "").trim();
+}
+
+// ─── Surlignage jaune des champs à remplir (contrats) ───
+
+/**
+ * Une ligne est à surligner si elle contient le placeholder standard
+ * (em-dash + tirets) ou si c'est une ligne-label statique connue qui doit
+ * être surlignée telle quelle (ex "Agissant en qualité…").
+ */
+const HIGHLIGHT_LABELS = [
+  "Agissant en qualité d'Entrepreneur Individuel",
+  "Adresse du/des LOGEMENT",
+];
+
+function shouldHighlightFieldLine(line: string): boolean {
+  if (currentDocumentType !== "contrat") return false;
+  if (line.includes("\u2014-")) return true; // em-dash + tiret = placeholder
+  return HIGHLIGHT_LABELS.some((lbl) => line.startsWith(lbl));
 }
 
 // ─── Inline anchor markers (courte durée) ───
@@ -183,10 +202,19 @@ function parseContent(content: string, articleCode: string, opts: ParseOptions):
   const paragraphs: Paragraph[] = [];
   const lines = content.split("\n");
   const isOwner = articleCode === "en_tete_proprietaire";
-  // `isCompactFields` prime : mode contrat — interligne simple même sur l'owner.
+  const isContrat = currentDocumentType === "contrat";
+  // CORR 8 — interligne 1.15 (276 twips) pour le corps du contrat, vs 240 pour la
+  // promesse. `isCompactFields` prime sur l'owner (blocs header serrés).
   const lineSpacing = opts.isCompactFields
     ? SPACING.lineBody
-    : ((opts.isOwnerFields || isOwner) ? SPACING.lineFieldsOwner : SPACING.lineBody);
+    : isContrat
+      ? 276
+      : ((opts.isOwnerFields || isOwner) ? SPACING.lineFieldsOwner : SPACING.lineBody);
+  // Contrat : espace après paragraphe normal plus petit (120 vs 200 promesse).
+  const afterNormal = isContrat ? 120 : SPACING.afterParagraph;
+  // Contrat : après ARTICLE / sous-titre = 200, sinon 60 comme avant (titres serrés).
+  const afterTitle = isContrat ? 200 : 60;
+  const afterSubtitle = isContrat ? 120 : 60;
 
   let lastWasTitle = false;
   let lastWasEmpty = false;
@@ -216,7 +244,7 @@ function parseContent(content: string, articleCode: string, opts: ParseOptions):
       paragraphs.push(
         new Paragraph({
           alignment: AlignmentType.JUSTIFIED,
-          spacing: { before: 240, after: 60, line: lineSpacing },
+          spacing: { before: 240, after: afterTitle, line: lineSpacing },
           keepNext: true, keepLines: true,
           pageBreakBefore: needsPageBreakOnNext || undefined,
           children: [new TextRun({ text: trimmed, font: FONTS.title, size: FONT_SIZES.articleTitle, bold: true })],
@@ -231,14 +259,22 @@ function parseContent(content: string, articleCode: string, opts: ParseOptions):
     if (isSubsectionTitle(trimmed)) {
       const { number, rest, isTitleOnly } = splitSubsectionLine(trimmed);
 
+      // CORR 4 — pour les contrats, insère " - " entre le numéro et le texte
+      // sur les sous-sous-sections 3-niveaux (2.1.1, 2.5.1, etc.) : produit
+      // "2.1.1. - Services de ménage…" comme dans le modèle de référence.
+      const isThreeLevel = /^\d+\.\d+\.\d+/.test(number);
+      const needsDash = currentDocumentType === "contrat" && isThreeLevel;
+      const titleText = needsDash ? `${number.trimEnd()} - ${rest}` : trimmed;
+      const numberDisplay = needsDash ? `${number.trimEnd()} - ` : number;
+
       if (isTitleOnly) {
         paragraphs.push(
           new Paragraph({
             alignment: AlignmentType.JUSTIFIED,
-            spacing: { before: 240, after: 60, line: lineSpacing },
+            spacing: { before: 240, after: afterSubtitle, line: lineSpacing },
             keepNext: true, keepLines: true,
             pageBreakBefore: needsPageBreakOnNext || undefined,
-            children: [new TextRun({ text: trimmed, font: FONTS.title, size: FONT_SIZES.articleTitle, bold: true })],
+            children: [new TextRun({ text: titleText, font: FONTS.title, size: FONT_SIZES.articleTitle, bold: true })],
           })
         );
         needsPageBreakOnNext = false;
@@ -247,11 +283,11 @@ function parseContent(content: string, articleCode: string, opts: ParseOptions):
         paragraphs.push(
           new Paragraph({
             alignment: AlignmentType.JUSTIFIED,
-            spacing: { before: 240, after: SPACING.afterParagraph, line: lineSpacing },
+            spacing: { before: 240, after: afterNormal, line: lineSpacing },
             keepLines: opts.keepTogether,
             pageBreakBefore: needsPageBreakOnNext || undefined,
             children: [
-              new TextRun({ text: number, font: FONTS.title, size: FONT_SIZES.articleTitle, bold: true }),
+              new TextRun({ text: numberDisplay, font: FONTS.title, size: FONT_SIZES.articleTitle, bold: true }),
               new TextRun({ text: rest, font: FONTS.body, size: FONT_SIZES.body }),
             ],
           })
@@ -304,7 +340,7 @@ function parseContent(content: string, articleCode: string, opts: ParseOptions):
           pageBreakBefore: needsPageBreakOnNext || undefined,
           keepLines: opts.keepTogether,
           children: [
-            new TextRun({ text: "•   ", font: FONTS.body, size: FONT_SIZES.body }),
+            new TextRun({ text: "●   ", font: FONTS.body, size: FONT_SIZES.body }),
             new TextRun({ text: parseBulletText(trimmed), font: FONTS.body, size: FONT_SIZES.body }),
           ],
         })
@@ -332,6 +368,52 @@ function parseContent(content: string, articleCode: string, opts: ParseOptions):
       let found = false;
       for (const [prefix, tag] of anchors) {
         if (trimmed.startsWith(prefix)) {
+          // CORR 7 — Mode contrat : pas d'anchor DocuSign, on injecte le
+          // placeholder standard (em-dash + tirets) et on surligne la ligne
+          // en jaune pour signaler à l'opératrice où remplir.
+          if (currentDocumentType === "contrat") {
+            if (tag === "/lg1/") {
+              // Adresse logement : placeholder sur une ligne séparée, toutes deux surlignées
+              paragraphs.push(
+                new Paragraph({
+                  alignment: AlignmentType.JUSTIFIED,
+                  spacing: { after: 0, line: lineSpacing },
+                  keepLines: opts.keepTogether,
+                  children: [new TextRun({ text: trimmed, font: FONTS.body, size: FONT_SIZES.body, highlight: "yellow" })],
+                }),
+                new Paragraph({
+                  spacing: { after: 0, line: lineSpacing },
+                  children: [new TextRun({ text: CONTRAT_PLACEHOLDER, font: FONTS.body, size: FONT_SIZES.body, highlight: "yellow" })],
+                })
+              );
+            } else if (prefix === "Représentée par") {
+              const insertIdx = trimmed.indexOf("par ") + 4;
+              const before = trimmed.slice(0, insertIdx);
+              const after = trimmed.slice(insertIdx);
+              paragraphs.push(
+                new Paragraph({
+                  alignment: AlignmentType.JUSTIFIED,
+                  spacing: { after: 0, line: lineSpacing },
+                  keepLines: opts.keepTogether,
+                  children: [new TextRun({ text: `${before}${CONTRAT_PLACEHOLDER}${after}`, font: FONTS.body, size: FONT_SIZES.body, highlight: "yellow" })],
+                })
+              );
+            } else {
+              // Cas standard : "Champ : —--------------------------"
+              const separator = trimmed.endsWith(":") ? " " : " : ";
+              const text = trimmed.endsWith(":") ? `${trimmed} ${CONTRAT_PLACEHOLDER}` : `${trimmed}${separator}${CONTRAT_PLACEHOLDER}`;
+              paragraphs.push(
+                new Paragraph({
+                  alignment: AlignmentType.JUSTIFIED,
+                  spacing: { after: 0, line: lineSpacing },
+                  keepLines: opts.keepTogether,
+                  children: [new TextRun({ text, font: FONTS.body, size: FONT_SIZES.body, highlight: "yellow" })],
+                })
+              );
+            }
+            found = true;
+            break;
+          }
           // Special case: "Représentée par" → insert /nm1/ after "par "
           if (prefix === "Représentée par") {
             const insertIdx = trimmed.indexOf("par ") + 4;
@@ -386,6 +468,7 @@ function parseContent(content: string, articleCode: string, opts: ParseOptions):
     // Anchor /lg2/ on "Adresse et description précise du/des LOGEMENT(s)" in preambule
     // /lg2/ on a separate line below so DocuSign places the field underneath
     if (articleCode === "preambule" && trimmed.startsWith("Adresse et description précise")) {
+      const isContrat = currentDocumentType === "contrat";
       paragraphs.push(
         new Paragraph({
           alignment: AlignmentType.JUSTIFIED,
@@ -393,11 +476,15 @@ function parseContent(content: string, articleCode: string, opts: ParseOptions):
           keepLines: opts.keepTogether,
           children: [new TextRun({ text: trimmed, font: FONTS.body, size: FONT_SIZES.body })],
         }),
-        new Paragraph({
-          spacing: { after: SPACING.afterParagraph, line: SPACING.lineBody },
-          children: [anchorTab("/lg2/"),
-          ],
-        })
+        isContrat
+          ? new Paragraph({
+              spacing: { after: SPACING.afterParagraph, line: SPACING.lineBody },
+              children: [new TextRun({ text: CONTRAT_PLACEHOLDER, font: FONTS.body, size: FONT_SIZES.body, highlight: "yellow" })],
+            })
+          : new Paragraph({
+              spacing: { after: SPACING.afterParagraph, line: SPACING.lineBody },
+              children: [anchorTab("/lg2/")],
+            })
       );
       continue;
     }
@@ -432,23 +519,30 @@ function parseContent(content: string, articleCode: string, opts: ParseOptions):
       trimmed === "ENTRE LES SOUSSIGNÉS" || trimmed === "ET" ||
       trimmed.startsWith("IL EST PRÉALABLEMENT RAPPELÉ") || trimmed.startsWith("CECI EXPOSÉ");
 
+    // Titre principal du document : grande taille (20pt) centré gras.
+    // Cas spécial contrat : "CONCIERGERIE - ACTE ITÉRATIF -" est un sous-titre,
+    // rendu en taille normale (10pt) centré gras.
+    const isConciergerieSubtitle =
+      trimmed.startsWith("CONCIERGERIE") && trimmed.includes("ACTE ITÉRATIF");
     const isBigTitle =
       trimmed === "PROMESSE DE CONTRAT" ||
       trimmed === "DE PRESTATION DE SERVICES" ||
       trimmed === "CONTRAT DE PRESTATIONS DE SERVICES" ||
-      trimmed.startsWith("CONCIERGERIE");
-    const isCentered = isBigTitle;
+      (trimmed.startsWith("CONCIERGERIE") && !isConciergerieSubtitle);
+    const isCentered = isBigTitle || isConciergerieSubtitle;
 
     let fontSize: number = FONT_SIZES.body;
     if (isBigTitle) fontSize = FONT_SIZES.docTitle;
+    // Le sous-titre "CONCIERGERIE - ACTE ITÉRATIF -" garde la taille body (10pt).
 
     const bold = isBoldLine || isCentered;
     const alignment = isCentered ? AlignmentType.CENTER : AlignmentType.JUSTIFIED;
     const hasItalic = trimmed.includes("la Partie") || trimmed.includes("les Parties");
 
+    const highlight = shouldHighlightFieldLine(trimmed) ? "yellow" : undefined;
     const children = hasItalic
       ? renderWithItalics(trimmed, fontSize, bold, isUnderlined)
-      : [new TextRun({ text: trimmed, font: FONTS.body, size: fontSize, bold, underline: isUnderlined ? {} : undefined })];
+      : [new TextRun({ text: trimmed, font: FONTS.body, size: fontSize, bold, underline: isUnderlined ? {} : undefined, highlight })];
 
     // En mode compact, pas de gap après paragraphe sur les lignes de champs
     // (Nom société, Capital, RCS, …) — garde un gap normal sur les lignes
@@ -456,7 +550,7 @@ function parseContent(content: string, articleCode: string, opts: ParseOptions):
     const isStructural = isBoldLine || isCentered;
     const afterParagraph = (opts.isCompactFields && !isStructural)
       ? 0
-      : SPACING.afterParagraph;
+      : afterNormal;
 
     paragraphs.push(
       new Paragraph({
