@@ -17,7 +17,12 @@ export async function POST(request: NextRequest) {
 
   try {
     const articles = await prisma.article.findMany({ orderBy: { orderIndex: "asc" } });
-    const contracts = await prisma.contract.findMany({ orderBy: { id: "asc" } });
+    // Limiter aux promesses — la table contient désormais aussi les contrats C*
+    // qui sont générés par /api/generate-contrats.
+    const contracts = await prisma.contract.findMany({
+      where: { documentType: "promesse" },
+      orderBy: { id: "asc" },
+    });
 
     // 1. Archive existing "(en cours)" folders
     const archived = await archiveCurrentFolders();

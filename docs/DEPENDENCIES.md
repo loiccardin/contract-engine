@@ -26,18 +26,18 @@ Chaque entree suit ce format :
 - **Impact :** Fichier fondation. Ne JAMAIS modifier sans validation Loic.
 
 ### `src/lib/contract-assembler.ts`
-- **Exporte :** `assembleContract(articles: Article[], contract: Contract): AssembledArticle[]`
-- **Utilise par :** `src/app/api/generate/route.ts`, `src/app/api/generate-test/route.ts`, `src/app/api/generate-test-all/route.ts`, `scripts/create-template-anchor.ts`, `scripts/test-docusign-create-template.ts`, `scripts/test-pdf-conversion.ts`
-- **Depend de :** `src/types/index.ts` (Article, Contract, AssembledArticle)
-- **Fonctions internes :** `selectContent()` (selection contenu par scope), `computeSectionNumbers()` (numerotation dynamique 2.2.x/2.4.x)
-- **Impact :** Logique metier critique -- selection du contenu par scope + numerotation dynamique. Si un article est mal assemble, le contrat signe sera faux.
+- **Exporte :** `assembleContract(articles: Article[], contract: Contract, documentType?: 'promesse' | 'contrat' = 'promesse'): AssembledArticle[]`, `DocumentType` (type)
+- **Utilise par :** `src/app/api/generate/route.ts`, `src/app/api/generate-contrats/route.ts`, `src/app/api/generate-test/route.ts`, `src/app/api/generate-test-all/route.ts`, `scripts/create-template-anchor.ts`, `scripts/test-docusign-create-template.ts`, `scripts/test-pdf-conversion.ts`
+- **Depend de :** `src/types/index.ts` (Article, Contract, AssembledArticle), `src/config/contrat-remapping.ts` (CONTRAT_TITLE_REMAPPING, CONTRAT_SUBTITLE_REMAPPING)
+- **Fonctions internes :** `selectContent()` (selection contenu par scope), `computeSectionNumbers()` (numerotation dynamique 2.2.x/2.4.x), `filterArticlesForDocument()` (filtre `all` + `promesse_only`/`contrat_only`), `remapTitleForContrat()` (TITLE→MAJUSCULES, SUBTITLE→renumerotation)
+- **Impact :** Logique metier critique -- selection du contenu par scope + numerotation dynamique + filtrage promesse/contrat. Si un article est mal assemble, le contrat signe sera faux.
 
 ### `src/lib/docx-generator.ts`
-- **Exporte :** `generateDocx(assembledArticles: AssembledArticle[], contract: Contract): Promise<Buffer>`
-- **Utilise par :** `src/app/api/generate/route.ts`, `src/app/api/generate-test/route.ts`, `src/app/api/generate-test-all/route.ts`, `scripts/create-template-anchor.ts`, `scripts/test-docusign-create-template.ts`, `scripts/test-pdf-conversion.ts`
-- **Depend de :** `src/config/styles.ts` (FONTS, FONT_SIZES, PAGE, SPACING, SIGNATURE), `src/types/index.ts`, `docx` (npm), `jszip` (npm), `fs`, `path`, `src/templates/*` (header/footer XML, images), `public/images/tampon-letahost.png`
-- **Fonctions internes :** `anchorTab()` (texte blanc invisible 1pt), `parseContent()` (parsing lignes en paragraphes DOCX), `buildCommentBox()` (art 9 encadre), `buildSignatureBlock()` (bloc signature avec /sn1/ /dt1/ /vi1/), `buildAnnexeTable()` (annexe 2 tableau), `applyDynamicNumbering()` (renumerotation 2.2.x/2.4.x), `injectTemplateHeaderFooter()` (post-processing ZIP pour header/footer custom)
-- **Impact :** Mise en page des contrats. Toute modification doit etre verifiee visuellement sur P1.P.CJ, P3.S.R et P6.P.
+- **Exporte :** `generateDocx(assembledArticles: AssembledArticle[], contract: Contract, documentType?: 'promesse' | 'contrat' = 'promesse'): Promise<Buffer>`
+- **Utilise par :** `src/app/api/generate/route.ts`, `src/app/api/generate-contrats/route.ts`, `src/app/api/generate-test/route.ts`, `src/app/api/generate-test-all/route.ts`, `scripts/create-template-anchor.ts`, `scripts/test-docusign-create-template.ts`, `scripts/test-pdf-conversion.ts`, `scripts/generate-local.ts`, `scripts/test-generate-contrat.ts`
+- **Depend de :** `src/config/styles.ts` (FONTS, FONT_SIZES, PAGE, SPACING, SIGNATURE), `src/config/contrat-remapping.ts` (CONTRAT_TEXT_REMAPPING, PROTECTED_REFERENCES, CONTRAT_TITLE_REMAPPING), `src/lib/contract-assembler.ts` (DocumentType), `src/types/index.ts`, `docx` (npm), `jszip` (npm), `fs`, `path`, `src/templates/*` (header/footer XML, images), `public/images/tampon-letahost.png`, `public/images/mandat-sepa.jpg`
+- **Fonctions internes :** `anchorTab()` (run vide si contrat, sinon texte blanc 1pt), `parseContent()` (parsing lignes en paragraphes DOCX), `buildCommentBox()` (art 9 encadre, promesse uniquement), `buildSignatureBlock()` (bloc signature avec /sn1/ /dt1/ /vi1/), `buildAnnexeTable()` (annexe 2 tableau), `applyDynamicNumbering()` (renumerotation 2.2.x/2.4.x), `applyContratTextRemap()` (remap textuel apres protect Code civil/CGI), `buildContratSectionHeader()` (titres MAJUSCULES contrat), `buildSepaImageAnnexe()` (image mandat SEPA pleine page), `injectTemplateHeaderFooter()` (post-processing ZIP pour header/footer custom), variable module `currentDocumentType`
+- **Impact :** Mise en page des contrats et des promesses. Toute modification doit etre verifiee visuellement sur P1.P.CJ, P3.S.R, P6.P, P7.P.CJ (promesses) et C1.P.CJ, C3.S.R, C6.P, C8.S (contrats).
 
 ### `src/config/contracts.ts`
 - **Exporte :** `ContractVariant` (type), `CONTRACT_VARIANTS` (tableau des 18 variantes)
@@ -63,10 +63,10 @@ Chaque entree suit ce format :
 - **Detail :** Accepte deux methodes d'auth : (1) header `Authorization: Bearer {APP_SECRET}`, (2) cookie `session` = HMAC-SHA256(APP_SECRET, LOGIN_PASSWORD). Utilise le module Node.js `crypto` (pas Web Crypto).
 
 ### `src/lib/google-drive.ts`
-- **Exporte :** `getFileName(code: string): string`, `archiveCurrentFolders(): Promise<string[]>`, `createOutputFolders(dateStr: string): Promise<{ docsFolderId, pdfFolderId }>`, `uploadDocx(folderId, fileName, docxBuffer): Promise<{ fileId, fileUrl }>`, `uploadPdf(folderId, fileName, pdfBuffer): Promise<string>`, `downloadFile(fileId: string): Promise<Buffer>`
-- **Utilise par :** `src/app/api/generate/route.ts` (archiveCurrentFolders, createOutputFolders, uploadDocx, getFileName), `src/app/api/push-docusign/route.ts` (downloadFile, uploadPdf), `src/app/api/push-docusign/single/route.ts` (downloadFile)
-- **Depend de :** `googleapis` (npm), `stream` (Readable)
-- **Constante interne :** `FILE_NAMES` -- mapping code -> nom complet du fichier Drive (18 entrees)
+- **Exporte :** `getFileName(code: string): string`, `archiveCurrentFolders(): Promise<string[]>`, `createOutputFolders(dateStr: string): Promise<{ docsFolderId, pdfFolderId }>`, `uploadDocx(folderId, fileName, docxBuffer): Promise<{ fileId, fileUrl }>`, `uploadPdf(folderId, fileName, pdfBuffer): Promise<string>`, `downloadFile(fileId: string): Promise<Buffer>`, `archiveCurrentContratsFolder(): Promise<string[]>`, `createContratsOutputFolder(dateStr: string): Promise<string>`, `uploadContratDocx(folderId, code, docxBuffer): Promise<{ fileId, fileUrl }>`
+- **Utilise par :** `src/app/api/generate/route.ts` (archiveCurrentFolders, createOutputFolders, uploadDocx, getFileName), `src/app/api/generate-contrats/route.ts` (archiveCurrentContratsFolder, createContratsOutputFolder, uploadContratDocx), `src/app/api/push-docusign/route.ts` (downloadFile, uploadPdf), `src/app/api/push-docusign/single/route.ts` (downloadFile)
+- **Depend de :** `googleapis` (npm), `stream` (Readable), `process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID`, `process.env.GOOGLE_DRIVE_ARCHIVE_FOLDER_ID`, `process.env.GOOGLE_DRIVE_CONTRATS_ROOT_FOLDER_ID`
+- **Constante interne :** `FILE_NAMES` -- mapping code -> nom complet du fichier Drive (18 entrees, promesses uniquement). Les contrats utilisent directement le code comme nom de fichier.
 
 ### `src/lib/docusign.ts`
 - **Exporte :** `getAccessToken(): Promise<string>`, `listTemplates(): Promise<{ templateId, name }[]>`, `createTemplateWithDocument(contractCode, buffer, fileName, fileType): Promise<string>`, `updateTemplateDocument(templateId, buffer, fileName, fileType): Promise<void>`, `createPowerForm(templateId, contractCode): Promise<{ powerFormId, powerFormUrl }>`, `reactivatePowerForm(powerFormId): Promise<void>`
@@ -336,7 +336,12 @@ Chaque entree suit ce format :
 - **Utilise par :** Next.js (layout racine)
 - **Depend de :** `next/font/local` (Geist fonts), `src/components/AuthProvider.tsx`
 
+### `src/config/contrat-remapping.ts`
+- **Exporte :** `CONTRAT_TEXT_REMAPPING` (paires `[match, replacement]` ordonnées du plus spécifique au plus général — appliquées au contenu textuel par `docx-generator`), `PROTECTED_REFERENCES` (renvois Code civil/CGI sentinellés avant remap), `CONTRAT_TITLE_REMAPPING` (Record code → titre MAJUSCULES, pour les sections principales du contrat), `CONTRAT_SUBTITLE_REMAPPING` (paires renumérotation 2.X.Y → X.Y, appliquées aux titres d'articles `all` non listés dans TITLE_REMAPPING)
+- **Utilise par :** `src/lib/contract-assembler.ts` (TITLE + SUBTITLE pour le titre), `src/lib/docx-generator.ts` (TEXT + PROTECTED_REFERENCES + TITLE pour la détection de header MAJUSCULES)
+- **Depend de :** rien
+
 ---
 
-> **Derniere mise a jour :** 2026-04-09
-> **Mis a jour par :** Claude Code (mise a jour complete documentation)
+> **Derniere mise a jour :** 2026-04-15 (Phase 2 contrat — pipeline assembler/generator + route /api/generate-contrats)
+> **Mis a jour par :** Claude Code

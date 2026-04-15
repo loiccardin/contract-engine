@@ -41,6 +41,9 @@ Stocke le contenu de chaque article/section du template maitre. Le scope determi
 | `content_zones_cj` | TEXT | | Variante Zones Classiques & Jaunes (.CJ) si scope = `menage` |
 | `content_zones_r` | TEXT | | Variante Zones Rouges (.R) si scope = `menage` |
 | `content_sans_menage` | TEXT | | Variante Sans menage (P2/P4/P6). NULL = section absente de cette variante |
+| `content_standard` | TEXT | | Variante Standard (durée 300j) si scope = `duree` |
+| `content_courte` | TEXT | | Variante Courte durée (<300j) si scope = `duree` |
+| `document_type` | VARCHAR(20) | NOT NULL, DEFAULT 'all' | `all` (partagé promesse + contrat), `promesse_only` (uniquement P*), `contrat_only` (uniquement C*) |
 | `is_page_break_before` | BOOLEAN | DEFAULT FALSE | Saut de page force avant cet article |
 | `keep_together` | BOOLEAN | DEFAULT TRUE | Ne jamais couper cet article entre 2 pages |
 | `updated_at` | TIMESTAMP | DEFAULT NOW() | Derniere modification (auto-update par Prisma @updatedAt) |
@@ -70,6 +73,8 @@ Les 18 variantes et leur mapping vers Google Drive et DocuSign.
 | `commission_type` | VARCHAR(20) | NOT NULL | `classique`, `studio`, `20pct` |
 | `statut_type` | VARCHAR(20) | NOT NULL | `particulier`, `societe` |
 | `menage_type` | VARCHAR(20) | NOT NULL | `zones_cj`, `zones_r`, `sans_menage` |
+| `duree_type` | VARCHAR(20) | NOT NULL, DEFAULT 'standard' | `standard` (300 jours) ou `courte` (<300 jours) |
+| `document_type` | VARCHAR(20) | NOT NULL, DEFAULT 'promesse' | `promesse` (P1-P8) ou `contrat` (C1-C8) |
 | `google_doc_id` | VARCHAR(100) | | ID du fichier DOCX dans Drive (mis a jour apres chaque generation) |
 | `docusign_template_name` | VARCHAR(255) | | Nom du template DocuSign (format: `CE - P1.P.CJ`) |
 | `docusign_powerform_id` | VARCHAR(100) | | ID du PowerForm (cree lors du premier push) |
@@ -117,6 +122,9 @@ model Article {
   contentZonesCj      String?  @map("content_zones_cj")
   contentZonesR       String?  @map("content_zones_r")
   contentSansMenage   String?  @map("content_sans_menage")
+  contentStandard     String?  @map("content_standard")
+  contentCourte       String?  @map("content_courte")
+  documentType        String   @default("all") @map("document_type") @db.VarChar(20)
   isPageBreakBefore   Boolean  @default(false) @map("is_page_break_before")
   keepTogether        Boolean  @default(true) @map("keep_together")
   updatedAt           DateTime @default(now()) @updatedAt @map("updated_at")
@@ -131,6 +139,8 @@ model Contract {
   commissionType        String  @map("commission_type") @db.VarChar(20)
   statutType            String  @map("statut_type") @db.VarChar(20)
   menageType            String  @map("menage_type") @db.VarChar(20)
+  dureeType             String  @default("standard") @map("duree_type") @db.VarChar(20)
+  documentType          String  @default("promesse") @map("document_type") @db.VarChar(20)
   googleDocId           String? @map("google_doc_id") @db.VarChar(100)
   docusignTemplateName  String? @map("docusign_template_name") @db.VarChar(255)
   docusignPowerformId   String? @map("docusign_powerform_id") @db.VarChar(100)
@@ -162,7 +172,9 @@ Ne JAMAIS modifier une migration existante -- creer une nouvelle migration pour 
 | Migration | Date | Description |
 |-----------|------|-------------|
 | `20260407135409_init` | 2026-04-07 | Tables initiales : articles, contracts, versions |
+| `20260413150246_add_duree_axis` | 2026-04-13 | Ajout `duree_type` sur contracts + `content_standard`/`content_courte` sur articles |
+| `20260415081221_add_document_type` | 2026-04-15 | Ajout `document_type` sur articles (`all`/`promesse_only`/`contrat_only`) et contracts (`promesse`/`contrat`) |
 
 ---
 
-> **Derniere mise a jour :** 2026-04-09
+> **Derniere mise a jour :** 2026-04-15

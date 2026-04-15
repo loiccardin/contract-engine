@@ -188,3 +188,115 @@ export async function downloadFile(fileId: string): Promise<Buffer> {
   return Buffer.from(res.data as ArrayBuffer);
 }
 
+// ─── Contrats définitifs (folder dédié, pas de PDF, pas de DocuSign) ───
+
+/**
+ * Nomenclature des fichiers Drive pour les Contrats Définitifs (C1-C8).
+ * Reprend le format des promesses (FILE_NAMES) en remplaçant le libellé
+ * "Promesse contrat de conciergerie" par "Contrat de prestations de services".
+ */
+const CONTRAT_FILE_NAMES: Record<string, string> = {
+  "C1.P.CJ": "C1.P.CJ - Contrat de prestations de services - Zones Classiques et Jaunes - Société en cours de formation",
+  "C1.P.R":  "C1.P.R - Contrat de prestations de services - Zones Rouges - Société en cours de formation",
+  "C1.S.CJ": "C1.S.CJ - Contrat de prestations de services - Zones Classiques et Jaunes - Société déjà existante",
+  "C1.S.R":  "C1.S.R - Contrat de prestations de services - Zones Rouges - Société déjà existante",
+  "C2.P":    "C2.P - Contrat de prestations de services - Société en cours de formation - Sans ménage et sans blanchisserie",
+  "C2.S":    "C2.S - Contrat de prestations de services - Société déjà existante - Sans ménage et sans blanchisserie",
+  "C3.P.CJ": "C3.P.CJ - Contrat de prestations de services - Zones Classiques et Jaunes - Société en cours de formation - Studio",
+  "C3.P.R":  "C3.P.R - Contrat de prestations de services - Zones Rouges - Société en cours de formation - Studio",
+  "C3.S.CJ": "C3.S.CJ - Contrat de prestations de services - Zones Classiques et Jaunes - Société déjà existante - Studio",
+  "C3.S.R":  "C3.S.R - Contrat de prestations de services - Zones Rouges - Société déjà existante - Studio",
+  "C4.P":    "C4.P - Contrat de prestations de services - Société en cours de formation - Sans ménage et sans blanchisserie - Studio",
+  "C4.S":    "C4.S - Contrat de prestations de services - Société déjà existante - Sans ménage et sans blanchisserie - Studio",
+  "C5.P.CJ": "C5.P.CJ - Contrat de prestations de services - Zones Classiques et Jaunes - Société en cours de formation - 20%",
+  "C5.P.R":  "C5.P.R - Contrat de prestations de services - Zones Rouges - Société en cours de formation - 20%",
+  "C5.S.CJ": "C5.S.CJ - Contrat de prestations de services - Zones Classiques et Jaunes - Société déjà existante - 20%",
+  "C5.S.R":  "C5.S.R - Contrat de prestations de services - Zones Rouges - Société déjà existante - 20%",
+  "C6.P":    "C6.P - Contrat de prestations de services - Société en cours de formation - Sans ménage et sans blanchisserie - 20%",
+  "C6.S":    "C6.S - Contrat de prestations de services - Société déjà existante - Sans ménage et sans blanchisserie - 20%",
+  "C7.P.CJ": "C7.P.CJ - Contrat de prestations de services - Zones Classiques et Jaunes - Société en cours de formation - Courte durée",
+  "C7.P.R":  "C7.P.R - Contrat de prestations de services - Zones Rouges - Société en cours de formation - Courte durée",
+  "C7.S.CJ": "C7.S.CJ - Contrat de prestations de services - Zones Classiques et Jaunes - Société déjà existante - Courte durée",
+  "C7.S.R":  "C7.S.R - Contrat de prestations de services - Zones Rouges - Société déjà existante - Courte durée",
+  "C8.P":    "C8.P - Contrat de prestations de services - Société en cours de formation - Sans ménage et sans blanchisserie - Courte durée",
+  "C8.S":    "C8.S - Contrat de prestations de services - Société déjà existante - Sans ménage et sans blanchisserie - Courte durée",
+};
+
+export function getContratFileName(code: string): string {
+  return CONTRAT_FILE_NAMES[code] || code;
+}
+
+function getContratsRootId(): string {
+  const id = process.env.GOOGLE_DRIVE_CONTRATS_ROOT_FOLDER_ID;
+  if (!id) throw new Error("GOOGLE_DRIVE_CONTRATS_ROOT_FOLDER_ID manquant");
+  return id;
+}
+
+/**
+ * Archive l'éventuel dossier "(en cours)" présent dans le dossier racine
+ * des Contrats Définitifs : retire " (en cours)" du nom et le déplace dans
+ * le dossier Archives partagé avec les Promesses (`GOOGLE_DRIVE_ARCHIVE_FOLDER_ID`).
+ */
+export async function archiveCurrentContratsFolder(): Promise<string[]> {
+  const drive = initDriveClient();
+  const parentId = getContratsRootId();
+  const archiveId = process.env.GOOGLE_DRIVE_ARCHIVE_FOLDER_ID;
+  if (!archiveId) throw new Error("GOOGLE_DRIVE_ARCHIVE_FOLDER_ID manquant");
+
+  const res = await drive.files.list({
+    q: `'${parentId}' in parents and mimeType = 'application/vnd.google-apps.folder' and name contains '(en cours)' and trashed = false`,
+    fields: "files(id, name)",
+    supportsAllDrives: true,
+    includeItemsFromAllDrives: true,
+  });
+
+  const archived: string[] = [];
+  for (const folder of res.data.files || []) {
+    if (!folder.id || !folder.name) continue;
+    const newName = folder.name.replace(" (en cours)", "");
+    await drive.files.update({
+      fileId: folder.id,
+      addParents: archiveId,
+      removeParents: parentId,
+      requestBody: { name: newName },
+      supportsAllDrives: true,
+    });
+    archived.push(newName);
+  }
+  return archived;
+}
+
+/**
+ * Crée le dossier de sortie pour les contrats du jour :
+ *   "MODELES CONTRATS - MAJ DU JJ/MM/AA (en cours)"
+ * dans GOOGLE_DRIVE_CONTRATS_ROOT_FOLDER_ID.
+ */
+export async function createContratsOutputFolder(dateStr: string): Promise<string> {
+  const drive = initDriveClient();
+  const parentId = getContratsRootId();
+
+  const folder = await drive.files.create({
+    requestBody: {
+      name: `MODELES CONTRATS - MAJ DU ${dateStr} (en cours)`,
+      mimeType: "application/vnd.google-apps.folder",
+      parents: [parentId],
+    },
+    fields: "id",
+    supportsAllDrives: true,
+  });
+  if (!folder.data.id) throw new Error("Échec création dossier contrats Drive");
+  return folder.data.id;
+}
+
+/**
+ * Upload du DOCX d'un contrat dans le dossier passé. Le nom du fichier
+ * suit la nomenclature CONTRAT_FILE_NAMES (code → libellé long).
+ */
+export async function uploadContratDocx(
+  folderId: string,
+  code: string,
+  docxBuffer: Buffer
+): Promise<{ fileId: string; fileUrl: string }> {
+  return uploadDocx(folderId, getContratFileName(code), docxBuffer);
+}
+

@@ -178,6 +178,22 @@
 
 ---
 
+## DEC-017 : Contrats définitifs — `document_type` + remapping vs duplication
+**Date :** 2026-04-15
+**Contexte :** Le Contract Engine doit générer 24 contrats définitifs (C1-C8) en plus des 24 promesses (P1-P8). Les deux documents partagent ~30 articles identiques mais le contrat retire 9 articles, en remplace 3, et en ajoute 7 (RGPD, législation sociale, imprévision, non-renonciation, droit applicable fusionné, deux annexes mandat).
+**Decision :** Stocker chaque article partagé une seule fois en DB avec `document_type = "all"`. Les articles structurellement différents (en-tête prestataire, objet, nullité) sont dupliqués en deux entrées distinctes (`promesse_only` + `contrat_only`). Les renvois internes utilisant la numérotation promesse (`paragraphe 2.2.1`, etc.) sont transformés à la volée par un find-and-replace appliqué uniquement aux articles `all` lors de la génération d'un contrat. La constante `CONTRAT_TEXT_REMAPPING` (`src/config/contrat-remapping.ts`) tient les paires de transformation, ordonnées du plus spécifique au plus général. `PROTECTED_REFERENCES` liste les renvois Code civil/CGI qui ne doivent jamais être transformés.
+**Alternatives considerees :**
+- Dupliquer les ~30 articles partagés (deux versions promesse/contrat) -> écarté car cascade les erreurs : toute mise à jour devrait être faite deux fois, doublant la surface des bugs et du contenu à maintenir
+- Stocker la version contrat dans des colonnes `content_*_contrat` séparées sur l'article unique -> écarté car explose le schéma (5 axes × 2 documents = 10 colonnes par variante) et complique le rendu
+- Templates Mustache/Handlebars avec variables -> écarté car le contrat n'est pas une variation paramétrique de la promesse, c'est une refonte structurelle (articles supprimés, fusionnés, réordonnés)
+**Consequences :**
+- Le `contract-assembler` (Phase 2) doit filtrer les articles selon `document_type` du contrat cible : `promesse` → `all` + `promesse_only`, `contrat` → `all` + `contrat_only`
+- Les articles `contrat_only` qui REMPLACENT un `promesse_only` partagent le même `order_index` (collision tolérée car le filtre les sépare)
+- Le remapping est purement textuel — pas de parsing de la structure d'article. Risque résiduel : si un nouveau renvoi interne apparaît dans un article `all` après une refonte de la numérotation, il faudra mettre à jour la table de remapping
+- 12 articles taggés `promesse_only`, 12 `contrat_only`, 29 `all` (total 53 articles après Phase 1)
+
+---
+
 > Ajouter une nouvelle entree a chaque decision structurante.
 
-> **Derniere mise a jour :** 2026-04-09
+> **Derniere mise a jour :** 2026-04-15
