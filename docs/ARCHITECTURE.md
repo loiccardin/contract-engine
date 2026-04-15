@@ -241,12 +241,42 @@ qui installe `libreoffice-core` et `libreoffice-writer` via apt si Nixpacks est 
 
 | Service | Usage | Config | Doc |
 |---------|-------|--------|-----|
-| PostgreSQL (Railway) | DB : articles (41), contracts (18), versions | `DATABASE_URL` dans `.env.local` | `docs/DATA-MODEL.md` |
+| PostgreSQL (Railway) | DB : articles (53), contracts (48 = 24 promesses + 24 contrats), versions | `DATABASE_URL` dans `.env.local` | `docs/DATA-MODEL.md` |
 | Railway | Hebergement app + DB | Dashboard Railway, Dockerfile custom | railway.app |
-| Google Drive API v3 | Upload DOCX natif, upload PDF, archivage, download | `GOOGLE_SERVICE_ACCOUNT_KEY`, `GOOGLE_DRIVE_ROOT_FOLDER_ID`, `GOOGLE_DRIVE_ARCHIVE_FOLDER_ID` | developers.google.com/drive |
+| Google Drive API v3 | Upload DOCX natif (promesses + contrats), upload PDF, archivage, download | `GOOGLE_SERVICE_ACCOUNT_KEY`, `GOOGLE_DRIVE_ROOT_FOLDER_ID` (promesses), `GOOGLE_DRIVE_ARCHIVE_FOLDER_ID`, `GOOGLE_DRIVE_CONTRATS_FOLDER_ID` (contrats) | developers.google.com/drive |
 | DocuSign eSignature API | Create/update templates, PowerForms, JWT auth | `DOCUSIGN_*` vars, instance EU | developers.docusign.com |
 | LibreOffice headless | Conversion DOCX -> PDF dans Docker | Installe via Dockerfile | libreoffice.org |
 | Prisma | ORM PostgreSQL | `prisma/schema.prisma` | prisma.io/docs |
+
+## Flux de generation des contrats definitifs (Phase 2 contrat)
+
+```
+POST /api/generate-contrats (Bearer auth)
+  ↓
+prisma.contract.findMany({ where: { documentType: "contrat" } })   // 24 contrats C*
+prisma.article.findMany()                                           // 53 articles
+  ↓
+archiveCurrentContratsFolder()              // dossier "(en cours)" → "archives contrats redigees"
+createContratsOutputFolder(dateStr)         // nouveau dossier "MODELES CONTRATS - MAJ DU JJ/MM/AA (en cours)"
+  ↓
+pour chaque contrat C* :
+  assembleContract(articles, contract, "contrat")
+    ├── filtre (`all` + `contrat_only`)
+    ├── selectContent(scope) — logique existante
+    ├── computeSectionNumbers — numerotation dynamique 2.2.x / 2.4.x
+    └── remap titres (CONTRAT_TITLE_REMAPPING + CONTRAT_SUBTITLE_REMAPPING)
+  generateDocx(assembled, contract, "contrat")
+    ├── currentDocumentType = "contrat" → anchorTab() retourne run vide (pas de /sn1/, /nm1/…)
+    ├── applyDynamicNumbering → applyContratTextRemap (PROTECTED_REFERENCES sentinellees)
+    ├── header MAJUSCULES pour codes de CONTRAT_TITLE_REMAPPING
+    ├── annexe_mandat_sepa → image pleine page (public/images/mandat-sepa.jpg)
+    ├── art_9 (commentaires) → skip pour contrat
+    └── titre document : "PROMESSE DE CONTRAT" → "CONTRAT DE PRESTATIONS DE SERVICES" + "CONCIERGERIE - ACTE ITERATIF -"
+  uploadContratDocx(folderId, code, buffer)
+  prisma.contract.update({ data: { googleDocId } })
+```
+
+Aucune conversion PDF, aucun appel DocuSign. Le pipeline promesse (`POST /api/generate` + `POST /api/push-docusign`) est intact — le seul ajustement est `where: { documentType: 'promesse' }` dans `/api/generate` pour exclure les C* desormais presents en table.
 
 ## Decisions d'architecture
 
@@ -254,4 +284,4 @@ Voir `docs/DECISIONS.md` pour le journal des choix techniques et leurs justifica
 
 ---
 
-> **Derniere mise a jour :** 2026-04-09
+> **Derniere mise a jour :** 2026-04-15 (Phase 2 contrat : pipeline `assembler` + `generator` + route `generate-contrats`)

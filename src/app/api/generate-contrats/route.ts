@@ -4,61 +4,59 @@ import { authenticate } from "@/lib/auth";
 import { assembleContract } from "@/lib/contract-assembler";
 import { generateDocx } from "@/lib/docx-generator";
 import {
-  archiveCurrentFolders,
-  createOutputFolders,
-  uploadDocx,
-  getFileName,
+  archiveCurrentContratsFolder,
+  createContratsOutputFolder,
+  uploadContratDocx,
 } from "@/lib/google-drive";
 import { Article, Contract } from "@/types";
 
+/**
+ * POST /api/generate-contrats
+ *
+ * Génère les 24 contrats définitifs (C1-C8) en DOCX et les uploade dans
+ * le dossier Drive `GOOGLE_DRIVE_CONTRATS_FOLDER_ID`. Pas de PDF,
+ * pas de DocuSign, pas de PowerForm.
+ */
 export async function POST(request: NextRequest) {
   const authError = authenticate(request);
   if (authError) return authError;
 
   try {
     const articles = await prisma.article.findMany({ orderBy: { orderIndex: "asc" } });
-    // Limiter aux promesses — la table contient désormais aussi les contrats C*
-    // qui sont générés par /api/generate-contrats.
     const contracts = await prisma.contract.findMany({
-      where: { documentType: "promesse" },
+      where: { documentType: "contrat" },
       orderBy: { id: "asc" },
     });
 
-    // 1. Archive existing "(en cours)" folders
-    const archived = await archiveCurrentFolders();
+    // 1. Archiver l'éventuel dossier "(en cours)" précédent
+    const archived = await archiveCurrentContratsFolder();
 
-    // 2. Create new output folder with today's date (DOCX only, no PDF folder)
+    // 2. Créer le nouveau dossier daté
     const now = new Date();
     const dateStr = `${String(now.getDate()).padStart(2, "0")}/${String(now.getMonth() + 1).padStart(2, "0")}/${String(now.getFullYear()).slice(-2)}`;
-    const { docsFolderId } = await createOutputFolders(dateStr);
+    const folderId = await createContratsOutputFolder(dateStr);
+    const folderUrl = `https://drive.google.com/drive/folders/${folderId}`;
 
-    // 3. Generate + upload each DOCX
-    const results: {
-      code: string;
-      status: string;
-      googleDocUrl?: string;
-      articleCount?: number;
-    }[] = [];
+    // 3. Générer + uploader chaque contrat
+    const results: { code: string; status: string; drive_file_id?: string; drive_file_url?: string; article_count?: number }[] = [];
     const errors: { code: string; error: string }[] = [];
 
     for (const contract of contracts) {
       try {
         const assembled = assembleContract(
           articles as unknown as Article[],
-          contract as unknown as Contract
+          contract as unknown as Contract,
+          "contrat"
         );
 
-        const docxBuffer = await generateDocx(assembled, contract as unknown as Contract);
-        const fileName = getFileName(contract.code);
-
-        // Upload DOCX natif dans Drive
-        const { fileId, fileUrl: googleDocUrl } = await uploadDocx(
-          docsFolderId,
-          fileName,
-          docxBuffer
+        const docxBuffer = await generateDocx(
+          assembled,
+          contract as unknown as Contract,
+          "contrat"
         );
 
-        // Update DB with DOCX file ID
+        const { fileId, fileUrl } = await uploadContratDocx(folderId, contract.code, docxBuffer);
+
         await prisma.contract.update({
           where: { code: contract.code },
           data: { googleDocId: fileId },
@@ -67,8 +65,9 @@ export async function POST(request: NextRequest) {
         results.push({
           code: contract.code,
           status: "ok",
-          googleDocUrl,
-          articleCount: assembled.length,
+          drive_file_id: fileId,
+          drive_file_url: fileUrl,
+          article_count: assembled.length,
         });
       } catch (err) {
         const message = err instanceof Error ? err.message : "Erreur inconnue";
@@ -81,15 +80,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       data: {
-        generatedAt: now.toISOString(),
+        generated_at: now.toISOString(),
+        folder_id: folderId,
+        folder_url: folderUrl,
         archived,
-        docsFolderId,
         contracts: results,
         errors,
       },
     });
   } catch (error) {
-    console.error("POST /api/generate error:", error);
+    console.error("POST /api/generate-contrats error:", error);
     return NextResponse.json(
       { success: false, error: `Erreur: ${error instanceof Error ? error.message : "Erreur inconnue"}` },
       { status: 500 }

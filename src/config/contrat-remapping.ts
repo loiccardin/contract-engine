@@ -68,3 +68,56 @@ export const PROTECTED_REFERENCES: string[] = [
   "article 1375",
   "article 267",
 ];
+
+/**
+ * Titres d'articles à transformer pour les contrats.
+ * Clé = code de l'article (`all`), valeur = titre en MAJUSCULES sans numéro
+ * (le numéro est déjà géré par le rendu).
+ *
+ * Le `docx-generator` détecte les titres tout-en-MAJUSCULES pour les rendre
+ * comme des headers de section (gras + espacement avant plus grand).
+ */
+export const CONTRAT_TITLE_REMAPPING: Record<string, string> = {
+  art_2_2_intro:    "SERVICES ASSURÉS PAR LE PRESTATAIRE",
+  art_2_3:          "OBLIGATIONS DU PROPRIÉTAIRE",
+  art_2_4_1_intro:  "RÉMUNÉRATION DU PRESTATAIRE",
+  art_2_5:          "EXCLUSIVITÉ - DURÉE – RÉSILIATION",
+  art_2_6:          "RESPONSABILITÉ",
+  art_2_7:          "CESSION DU CONTRAT",
+  art_2_8:          "FIN DU CONTRAT",
+  art_2_9:          "CONFIDENTIALITÉ ET NON-DÉNIGREMENT",
+};
+
+/**
+ * Renumérotation des sous-titres présents EN TÊTE de contenu d'article.
+ * Ordre CRITIQUE : du plus spécifique au plus général.
+ *
+ * Appliqué par l'assembler sur les titres d'articles `all` qui ne sont PAS
+ * dans CONTRAT_TITLE_REMAPPING (sous-sections 2.X.Y → X.Y).
+ */
+export const CONTRAT_SUBTITLE_REMAPPING: Array<[string, string]> = [
+  ["2.2.1.1.", "2.1.1."],
+  ["2.2.1.2.", "2.1.2."],
+  ["2.2.1.3.", "2.1.3."],
+  ["2.2.1.",   "2.1."],
+  ["2.2.2.",   "2.2."],
+  ["2.2.3.",   "2.3."],
+  ["2.2.4.",   "2.4."],
+  ["2.2.5.1.", "2.5.1."],
+  ["2.2.5.2.", "2.5.2."],
+  ["2.2.5.3.", "2.5.3."],
+  ["2.2.5.",   "2.5."],
+  ["2.2.6.",   "2.6."],
+  ["2.2.7.",   "2.7."],
+  ["2.2.8",    "2.8"],
+  ["2.4.1.",   "4.1."],
+  ["2.4.2.",   "4.2."],
+  ["2.4.3.",   "4.3."],
+  ["2.4.4.",   "4.4."],
+  ["2.5.1.",   "5.1."],
+  ["2.5.2.",   "5.2."],
+  ["2.5.3.",   "5.3."],
+  ["2.5.4.",   "5.4."],
+  ["2.5.5.",   "5.5."],
+  ["2.5.6.",   "5.6."],
+];

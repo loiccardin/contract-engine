@@ -19,6 +19,12 @@ import {
 } from "docx";
 import { AssembledArticle, Contract } from "@/types";
 import { FONTS, FONT_SIZES, PAGE, SPACING, SIGNATURE } from "@/config/styles";
+import {
+  CONTRAT_TEXT_REMAPPING,
+  PROTECTED_REFERENCES,
+  CONTRAT_TITLE_REMAPPING,
+} from "@/config/contrat-remapping";
+import type { DocumentType } from "./contract-assembler";
 
 // ─── File loading ───
 
@@ -35,8 +41,19 @@ function loadImage(filename: string): Buffer {
 }
 
 // ─── Anchor tab (invisible white 1pt) ───
+//
+// État global du document en cours de génération (set par generateDocx).
+// Permet aux fonctions internes (parseContent, anchorTab, buildSignatureBlock…)
+// de savoir si on est en mode "promesse" (anchors actifs) ou "contrat"
+// (anchors absents — pas de DocuSign).
+
+let currentDocumentType: DocumentType = "promesse";
 
 function anchorTab(tag: string): TextRun {
+  if (currentDocumentType === "contrat") {
+    // Pas d'anchor DocuSign sur les contrats — on retourne un run vide.
+    return new TextRun({ text: "", font: FONTS.body, size: FONT_SIZES.body });
+  }
   return new TextRun({ text: tag, font: FONTS.body, size: FONT_SIZES.anchorTab, color: "FFFFFF" });
 }
 
@@ -585,6 +602,66 @@ function buildAnnexeTable(content: string, pageBreak: boolean = false): Paragrap
   return paragraphs;
 }
 
+// ─── Remapping texte pour contrats définitifs ───
+//
+// Protège d'abord les références Code civil/CGI listées dans
+// PROTECTED_REFERENCES en les substituant par un sentinelle invisible, applique
+// les transformations CONTRAT_TEXT_REMAPPING (ordonnées spécifique → général),
+// puis restaure les références protégées.
+
+function applyContratTextRemap(content: string): string {
+  const protectedMap: Record<string, string> = {};
+  let s = content;
+  PROTECTED_REFERENCES.forEach((ref, i) => {
+    if (!s.includes(ref)) return;
+    const sentinel = `\u0000PROT${i}\u0000`;
+    protectedMap[sentinel] = ref;
+    s = s.split(ref).join(sentinel);
+  });
+  for (const [from, to] of CONTRAT_TEXT_REMAPPING) {
+    s = s.split(from).join(to);
+  }
+  for (const [sentinel, original] of Object.entries(protectedMap)) {
+    s = s.split(sentinel).join(original);
+  }
+  return s;
+}
+
+// ─── Header de section pour contrats (titres MAJUSCULES) ───
+
+function buildContratSectionHeader(title: string, pageBreakBefore: boolean): Paragraph {
+  return new Paragraph({
+    alignment: AlignmentType.JUSTIFIED,
+    spacing: { before: 240, after: 60, line: SPACING.lineBody },
+    keepNext: true, keepLines: true,
+    pageBreakBefore: pageBreakBefore || undefined,
+    children: [new TextRun({ text: title, font: FONTS.title, size: FONT_SIZES.articleTitle, bold: true })],
+  });
+}
+
+// ─── Annexe SEPA — image pleine page ───
+
+function buildSepaImageAnnexe(title: string, pageBreak: boolean): Paragraph[] {
+  const sepaImage = loadImage("mandat-sepa.jpg");
+  // Largeur utile ≈ 9029 twips ≈ 600px @ 96 DPI. Hauteur proportionnelle au ratio
+  // de l'image source (mandat SEPA standard portrait — ~560×800).
+  const widthPx = 600;
+  const heightPx = 850;
+  return [
+    new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { before: 200, after: 200 },
+      keepNext: true, keepLines: true,
+      pageBreakBefore: pageBreak || undefined,
+      children: [new TextRun({ text: title, font: FONTS.title, size: FONT_SIZES.articleTitle, bold: true, underline: {} })],
+    }),
+    new Paragraph({
+      alignment: AlignmentType.CENTER,
+      children: [new ImageRun({ data: sepaImage, transformation: { width: widthPx, height: heightPx }, type: "jpg" })],
+    }),
+  ];
+}
+
 // ─── Auto-injection markers courte durée (art_2_3) ───
 
 /**
@@ -689,8 +766,10 @@ async function injectTemplateHeaderFooter(docxBuffer: Buffer): Promise<Buffer> {
 
 export async function generateDocx(
   assembledArticles: AssembledArticle[],
-  contract: Contract
+  contract: Contract,
+  documentType: DocumentType = "promesse"
 ): Promise<Buffer> {
+  currentDocumentType = documentType;
   const tamponImage = loadImage("tampon-letahost.png");
 
   const children: Paragraph[] = [];
@@ -704,27 +783,40 @@ export async function generateDocx(
       article.code === "annexe_1" ||
       article.code === "annexe_2";
 
+    // Calcul du contenu transformé (numérotation dynamique → courte durée → remap contrat)
+    let content = article.content;
+    if (article.sectionNumber) {
+      content = applyDynamicNumbering(content, article.sectionNumber);
+    }
+    if (article.code === "art_2_3" && contract.dureeType === "courte") {
+      content = injectCourteDureeMarkers(content);
+    }
+    if (documentType === "contrat") {
+      content = applyContratTextRemap(content);
+    }
+
+    // Article 9 — boîte commentaires : seulement pour les promesses
     if (article.code === "art_9") {
-      // Comment box: pageBreak via dedicated paragraph if needed
+      if (documentType === "contrat") continue;
       if (needsPageBreak && children.length > 0) {
         children.push(new Paragraph({ pageBreakBefore: true, spacing: { after: 0, line: 240 }, children: [new TextRun({ text: "", size: 2 })] }));
       }
       children.push(...buildCommentBox());
     } else if (article.code === "bloc_signature") {
-      children.push(...buildSignatureBlock(article.content, tamponImage, needsPageBreak));
+      children.push(...buildSignatureBlock(content, tamponImage, needsPageBreak));
     } else if (article.code === "annexe_2") {
-      children.push(...buildAnnexeTable(article.content, needsPageBreak));
+      children.push(...buildAnnexeTable(content, needsPageBreak));
+    } else if (documentType === "contrat" && article.code === "annexe_mandat_sepa") {
+      // Annexe 3 — mandat SEPA : titre + image pleine page
+      children.push(...buildSepaImageAnnexe("ANNEXE 3 : MANDAT SEPA", needsPageBreak));
+    } else if (documentType === "contrat" && CONTRAT_TITLE_REMAPPING[article.code]) {
+      // Header de section MAJUSCULES (RÉMUNÉRATION, OBLIGATIONS…) + corps
+      children.push(buildContratSectionHeader(article.title, needsPageBreak && children.length > 0));
+      children.push(...parseContent(content, article.code, {
+        keepTogether: article.keepTogether,
+        isOwnerFields: article.code === "en_tete_proprietaire",
+      }));
     } else {
-      // Apply dynamic section number from the assembler
-      let content = article.content;
-      if (article.sectionNumber) {
-        content = applyDynamicNumbering(content, article.sectionNumber);
-      }
-      // Courte durée: injecter automatiquement les markers /pl1/ /jr1/
-      // dans art_2_3 (invisibles pour Loïc dans l'éditeur).
-      if (article.code === "art_2_3" && contract.dureeType === "courte") {
-        content = injectCourteDureeMarkers(content);
-      }
       children.push(...parseContent(content, article.code, {
         keepTogether: article.keepTogether,
         isOwnerFields: article.code === "en_tete_proprietaire",

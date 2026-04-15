@@ -15,6 +15,7 @@ export interface Article {
   contentSansMenage: string | null;
   contentStandard: string | null;
   contentCourte: string | null;
+  documentType: "all" | "promesse_only" | "contrat_only";
   isPageBreakBefore: boolean;
   keepTogether: boolean;
   updatedAt: string;
@@ -27,6 +28,7 @@ export interface Contract {
   statutType: "particulier" | "societe";
   menageType: "zones_cj" | "zones_r" | "sans_menage";
   dureeType: "standard" | "courte";
+  documentType: "promesse" | "contrat";
   googleDocId: string | null;
   docusignTemplateName: string | null;
   docusignPowerformId: string | null;

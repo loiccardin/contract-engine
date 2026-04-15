@@ -183,6 +183,41 @@ Exception : `GET /api/versions` n'a pas d'auth (stub). Les routes `/api/auth/*` 
 
 > Note : Pas de PDF a cette etape. Les PDF sont generes par `/api/push-docusign`.
 
+> **Filtre `document_type='promesse'`** depuis l'ajout des contrats definitifs (Phase 1 contrat). Genere uniquement les 24 promesses P*. Les contrats C* sont generes par `POST /api/generate-contrats`.
+
+---
+
+#### `POST /api/generate-contrats`
+**Description :** Genere les 24 contrats definitifs (C1-C8) en DOCX et les uploade dans le dossier Drive `GOOGLE_DRIVE_CONTRATS_FOLDER_ID`. Pas de PDF, pas de DocuSign, pas de PowerForm.
+**Auth :** Requise
+**Body :** aucun
+
+**Traitement :**
+1. Recupere tous les articles (tries par order_index) et les 24 contrats `WHERE document_type = 'contrat'`
+2. Archive l'eventuel dossier "(en cours)" precedent dans `GOOGLE_DRIVE_CONTRATS_FOLDER_ID` : retire " (en cours)" du nom et deplace dans le sous-dossier "archives contrats redigees" s'il existe
+3. Cree un nouveau dossier `MODELES CONTRATS - MAJ DU JJ/MM/AA (en cours)`
+4. Pour chaque contrat (x24) : `assembleContract(..., "contrat")` -> `generateDocx(..., "contrat")` -> upload DOCX natif (nom = code, ex `C1.P.CJ.docx`)
+5. Met a jour `google_doc_id` dans la table contracts
+
+**Reponse 200 :**
+```json
+{
+  "success": true,
+  "data": {
+    "generated_at": "2026-04-15T...",
+    "folder_id": "...",
+    "folder_url": "https://drive.google.com/drive/folders/...",
+    "archived": ["MODELES CONTRATS - MAJ DU 14/04/26"],
+    "contracts": [
+      { "code": "C1.P.CJ", "status": "ok", "drive_file_id": "...", "drive_file_url": "...", "article_count": 40 }
+    ],
+    "errors": []
+  }
+}
+```
+
+> Le pipeline `assembleContract` filtre les articles selon `document_type`, applique `CONTRAT_TITLE_REMAPPING` + `CONTRAT_SUBTITLE_REMAPPING` aux titres. Le pipeline `generateDocx` applique `CONTRAT_TEXT_REMAPPING` au contenu (apres la numerotation dynamique), respecte `PROTECTED_REFERENCES`, supprime les anchor tabs DocuSign, change le titre en "CONTRAT DE PRESTATIONS DE SERVICES / CONCIERGERIE - ACTE ITERATIF -", et insere l'image `public/images/mandat-sepa.jpg` en pleine page pour `annexe_mandat_sepa`.
+
 ---
 
 ### Push DocuSign
@@ -328,4 +363,4 @@ Exception : `GET /api/versions` n'a pas d'auth (stub). Les routes `/api/auth/*` 
 
 ---
 
-> **Derniere mise a jour :** 2026-04-09
+> **Derniere mise a jour :** 2026-04-15 (Phase 2 contrat : ajout `POST /api/generate-contrats`)

@@ -188,3 +188,99 @@ export async function downloadFile(fileId: string): Promise<Buffer> {
   return Buffer.from(res.data as ArrayBuffer);
 }
 
+// ─── Contrats définitifs (folder dédié, pas de PDF, pas de DocuSign) ───
+
+/**
+ * Cherche le sous-dossier "archives contrats rédigés" dans le dossier contrats.
+ * Retourne null s'il n'existe pas (l'archive sera désactivée pour ce push).
+ */
+async function findContratsArchiveFolderId(
+  drive: drive_v3.Drive,
+  parentId: string
+): Promise<string | null> {
+  const res = await drive.files.list({
+    q: `'${parentId}' in parents and mimeType = 'application/vnd.google-apps.folder' and name contains 'archives contrats' and trashed = false`,
+    fields: "files(id, name)",
+    supportsAllDrives: true,
+    includeItemsFromAllDrives: true,
+  });
+  return res.data.files?.[0]?.id ?? null;
+}
+
+/**
+ * Archive l'éventuel dossier "(en cours)" présent dans le dossier contrats :
+ *  - retire " (en cours)" du nom
+ *  - déplace dans le sous-dossier "archives contrats rédigés"
+ * Si le dossier d'archive n'existe pas, le dossier en cours est juste renommé
+ * sur place (plus sûr que de le supprimer).
+ */
+export async function archiveCurrentContratsFolder(): Promise<string[]> {
+  const drive = initDriveClient();
+  const parentId = process.env.GOOGLE_DRIVE_CONTRATS_FOLDER_ID;
+  if (!parentId) throw new Error("GOOGLE_DRIVE_CONTRATS_FOLDER_ID manquant");
+
+  const archiveId = await findContratsArchiveFolderId(drive, parentId);
+
+  const res = await drive.files.list({
+    q: `'${parentId}' in parents and mimeType = 'application/vnd.google-apps.folder' and name contains '(en cours)' and trashed = false`,
+    fields: "files(id, name)",
+    supportsAllDrives: true,
+    includeItemsFromAllDrives: true,
+  });
+
+  const archived: string[] = [];
+  for (const folder of res.data.files || []) {
+    if (!folder.id || !folder.name) continue;
+    const newName = folder.name.replace(" (en cours)", "");
+    const update: { addParents?: string; removeParents?: string; requestBody: { name: string } } = {
+      requestBody: { name: newName },
+    };
+    if (archiveId) {
+      update.addParents = archiveId;
+      update.removeParents = parentId;
+    }
+    await drive.files.update({
+      fileId: folder.id,
+      ...update,
+      supportsAllDrives: true,
+    });
+    archived.push(newName);
+  }
+  return archived;
+}
+
+/**
+ * Crée le dossier de sortie pour les contrats du jour :
+ *   "MODELES CONTRATS - MAJ DU JJ/MM/AA (en cours)"
+ * dans GOOGLE_DRIVE_CONTRATS_FOLDER_ID.
+ */
+export async function createContratsOutputFolder(dateStr: string): Promise<string> {
+  const drive = initDriveClient();
+  const parentId = process.env.GOOGLE_DRIVE_CONTRATS_FOLDER_ID;
+  if (!parentId) throw new Error("GOOGLE_DRIVE_CONTRATS_FOLDER_ID manquant");
+
+  const folder = await drive.files.create({
+    requestBody: {
+      name: `MODELES CONTRATS - MAJ DU ${dateStr} (en cours)`,
+      mimeType: "application/vnd.google-apps.folder",
+      parents: [parentId],
+    },
+    fields: "id",
+    supportsAllDrives: true,
+  });
+  if (!folder.data.id) throw new Error("Échec création dossier contrats Drive");
+  return folder.data.id;
+}
+
+/**
+ * Upload du DOCX d'un contrat dans le dossier passé. Le fichier prend
+ * exactement le code du contrat comme nom (ex: "C1.P.CJ.docx").
+ */
+export async function uploadContratDocx(
+  folderId: string,
+  code: string,
+  docxBuffer: Buffer
+): Promise<{ fileId: string; fileUrl: string }> {
+  return uploadDocx(folderId, code, docxBuffer);
+}
+
