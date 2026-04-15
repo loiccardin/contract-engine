@@ -238,6 +238,31 @@ function parseContent(content: string, articleCode: string, opts: ParseOptions):
     lastWasTitle = false;
     lastWasEmpty = false;
 
+    // FIX 3 + 5 — Titres d'articles principaux du contrat au format "N. TITRE…"
+    // (9. PROTECTION, 11. SOUS-TRAITANCE, 12. DIVERS, 13. DROIT APPLICABLE).
+    // Ces titres sortent des articles contrat_only (pas via buildContratSectionHeader
+    // qui traite les all remappés). On les rend bold + gros spacing.before pour
+    // créer le saut visuel entre articles.
+    if (
+      isContrat &&
+      /^\d+\.\s+\S/.test(trimmed) &&
+      !/^\d+\.\d/.test(trimmed) &&
+      trimmed === trimmed.toUpperCase()
+    ) {
+      paragraphs.push(
+        new Paragraph({
+          alignment: AlignmentType.JUSTIFIED,
+          spacing: { before: 400, after: afterTitle, line: lineSpacing },
+          keepNext: true, keepLines: true,
+          pageBreakBefore: needsPageBreakOnNext || undefined,
+          children: [new TextRun({ text: trimmed, font: FONTS.title, size: FONT_SIZES.articleTitle, bold: true })],
+        })
+      );
+      needsPageBreakOnNext = false;
+      lastWasTitle = true;
+      continue;
+    }
+
     // ARTICLE headers — keepNext + keepLines, space_before for separation
     if (isArticleHeader(trimmed)) {
       paragraphs.push(
@@ -265,10 +290,11 @@ function parseContent(content: string, articleCode: string, opts: ParseOptions):
       const needsDash = currentDocumentType === "contrat" && isThreeLevel;
       const titleText = needsDash ? `${number.trimEnd()} - ${rest}` : trimmed;
       const numberDisplay = needsDash ? `${number.trimEnd()} - ` : number;
-      // FIX 3 — en mode contrat, les sous-sous-sections (3-niveaux avec tiret)
-      // sont rendues comme des titres FULL BOLD même si le texte dépasse 60 chars.
-      // La référence montre "2.1.1. - Services de ménage effectués…" en gras complet.
-      const forceTitleOnly = needsDash;
+      // FIX 4 — en mode contrat, TOUTES les sous-sections (2 et 3 niveaux)
+      // sont rendues FULL BOLD selon le brief, quelle que soit la longueur
+      // du texte. Les 2-niveaux courts (4.1. Commission) étaient déjà bold
+      // via isTitleOnly ; cette règle étend le bold aux longs (5.2, 12.1, …).
+      const forceTitleOnly = isContrat;
       const effectiveIsTitleOnly = isTitleOnly || forceTitleOnly;
 
       if (effectiveIsTitleOnly) {
@@ -558,13 +584,20 @@ function parseContent(content: string, articleCode: string, opts: ParseOptions):
     const afterParagraph = (opts.isCompactFields && !isStructural) || (isContrat && hasPlaceholder)
       ? 0
       : afterNormal;
+    // FIX 2 — "IL EST PRÉALABLEMENT RAPPELÉ QUE :" démarre le préambule.
+    // En contrat, on force un saut de page pour éviter que le titre soit
+    // orphelin en bas de la page 1 — le modèle le place en haut de page 2.
+    const forcePageBreak = isContrat && trimmed.startsWith("IL EST PRÉALABLEMENT RAPPELÉ");
+    // keepNext pour que ce titre reste collé au début du préambule.
+    const keepNextStructural = isStructural;
 
     paragraphs.push(
       new Paragraph({
         alignment,
         spacing: { after: afterParagraph, line: lineSpacing },
         keepLines: opts.keepTogether,
-        pageBreakBefore: needsPageBreakOnNext || undefined,
+        keepNext: keepNextStructural || undefined,
+        pageBreakBefore: (needsPageBreakOnNext || forcePageBreak) || undefined,
         children,
       })
     );
@@ -820,7 +853,9 @@ function stripRedundantTopTitle(content: string): string {
 function buildContratSectionHeader(title: string, pageBreakBefore: boolean): Paragraph {
   return new Paragraph({
     alignment: AlignmentType.JUSTIFIED,
-    spacing: { before: 240, after: 60, line: SPACING.lineBody },
+    // FIX 5 — 400 twips avant chaque titre d'article pour créer un saut visuel
+    // net entre la fin de l'article précédent et le début du suivant.
+    spacing: { before: 400, after: 140, line: SPACING.lineBody },
     keepNext: true, keepLines: true,
     pageBreakBefore: pageBreakBefore || undefined,
     children: [new TextRun({ text: title, font: FONTS.title, size: FONT_SIZES.articleTitle, bold: true })],
