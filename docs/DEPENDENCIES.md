@@ -336,7 +336,12 @@ Chaque entree suit ce format :
 - **Utilise par :** Next.js (layout racine)
 - **Depend de :** `next/font/local` (Geist fonts), `src/components/AuthProvider.tsx`
 
+### `src/config/contrat-remapping.ts`
+- **Exporte :** `CONTRAT_TEXT_REMAPPING` (paires `[match, replacement]` ordonnées du plus spécifique au plus général), `PROTECTED_REFERENCES` (renvois Code civil/CGI à ne jamais transformer)
+- **Utilise par :** personne encore — Phase 2 (sera consommé par `contract-assembler.ts` quand on génère un contrat définitif pour transformer les renvois internes des articles `all`)
+- **Depend de :** rien
+
 ---
 
-> **Derniere mise a jour :** 2026-04-09
-> **Mis a jour par :** Claude Code (mise a jour complete documentation)
+> **Derniere mise a jour :** 2026-04-15
+> **Mis a jour par :** Claude Code (Phase 1 contrat définitif)
