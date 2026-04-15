@@ -243,7 +243,7 @@ qui installe `libreoffice-core` et `libreoffice-writer` via apt si Nixpacks est 
 |---------|-------|--------|-----|
 | PostgreSQL (Railway) | DB : articles (53), contracts (48 = 24 promesses + 24 contrats), versions | `DATABASE_URL` dans `.env.local` | `docs/DATA-MODEL.md` |
 | Railway | Hebergement app + DB | Dashboard Railway, Dockerfile custom | railway.app |
-| Google Drive API v3 | Upload DOCX natif (promesses + contrats), upload PDF, archivage, download | `GOOGLE_SERVICE_ACCOUNT_KEY`, `GOOGLE_DRIVE_ROOT_FOLDER_ID` (promesses), `GOOGLE_DRIVE_ARCHIVE_FOLDER_ID`, `GOOGLE_DRIVE_CONTRATS_FOLDER_ID` (contrats) | developers.google.com/drive |
+| Google Drive API v3 | Upload DOCX natif (promesses + contrats), upload PDF, archivage, download | `GOOGLE_SERVICE_ACCOUNT_KEY`, `GOOGLE_DRIVE_ROOT_FOLDER_ID` (promesses), `GOOGLE_DRIVE_ARCHIVE_FOLDER_ID` (partagé promesses + contrats), `GOOGLE_DRIVE_CONTRATS_ROOT_FOLDER_ID` (contrats) | developers.google.com/drive |
 | DocuSign eSignature API | Create/update templates, PowerForms, JWT auth | `DOCUSIGN_*` vars, instance EU | developers.docusign.com |
 | LibreOffice headless | Conversion DOCX -> PDF dans Docker | Installe via Dockerfile | libreoffice.org |
 | Prisma | ORM PostgreSQL | `prisma/schema.prisma` | prisma.io/docs |

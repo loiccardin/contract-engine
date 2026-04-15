@@ -14,7 +14,7 @@ import { Article, Contract } from "@/types";
  * POST /api/generate-contrats
  *
  * Génère les 24 contrats définitifs (C1-C8) en DOCX et les uploade dans
- * le dossier Drive `GOOGLE_DRIVE_CONTRATS_FOLDER_ID`. Pas de PDF,
+ * le dossier Drive `GOOGLE_DRIVE_CONTRATS_ROOT_FOLDER_ID`. Pas de PDF,
  * pas de DocuSign, pas de PowerForm.
  */
 export async function POST(request: NextRequest) {

@@ -1,9 +1,10 @@
 "use client";
 
 const STEPS = [
-  { number: 1, label: "Modifier" },
-  { number: 2, label: "Générer" },
-  { number: 3, label: "Pousser" },
+  { number: 1, label: "Modifier", href: "/editor" },
+  { number: 2, label: "Générer", href: "/generate" },
+  { number: 3, label: "Pousser", href: "/push" },
+  { number: 4, label: "Contrats", href: "/contrats" },
 ];
 
 interface StepIndicatorProps {
@@ -20,10 +21,10 @@ export default function StepIndicator({ currentStep }: StepIndicatorProps) {
 
         return (
           <div key={step.number} className="flex items-center">
-            {/* Step circle + label */}
-            <div className="flex flex-col items-center gap-1.5">
+            {/* Step circle + label — cliquable pour accès direct à chaque étape */}
+            <a href={step.href} className="flex flex-col items-center gap-1.5 group">
               <div
-                className={`flex items-center justify-center w-8 h-8 rounded-full text-sm font-semibold transition-colors ${
+                className={`flex items-center justify-center w-8 h-8 rounded-full text-sm font-semibold transition-colors group-hover:ring-2 group-hover:ring-indigo-200 ${
                   isCompleted
                     ? "bg-emerald-500 text-white"
                     : isActive
@@ -50,7 +51,7 @@ export default function StepIndicator({ currentStep }: StepIndicatorProps) {
               >
                 {step.label}
               </span>
-            </div>
+            </a>
 
             {/* Connecting line */}
             {i < STEPS.length - 1 && (

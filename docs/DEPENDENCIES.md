@@ -65,7 +65,7 @@ Chaque entree suit ce format :
 ### `src/lib/google-drive.ts`
 - **Exporte :** `getFileName(code: string): string`, `archiveCurrentFolders(): Promise<string[]>`, `createOutputFolders(dateStr: string): Promise<{ docsFolderId, pdfFolderId }>`, `uploadDocx(folderId, fileName, docxBuffer): Promise<{ fileId, fileUrl }>`, `uploadPdf(folderId, fileName, pdfBuffer): Promise<string>`, `downloadFile(fileId: string): Promise<Buffer>`, `archiveCurrentContratsFolder(): Promise<string[]>`, `createContratsOutputFolder(dateStr: string): Promise<string>`, `uploadContratDocx(folderId, code, docxBuffer): Promise<{ fileId, fileUrl }>`
 - **Utilise par :** `src/app/api/generate/route.ts` (archiveCurrentFolders, createOutputFolders, uploadDocx, getFileName), `src/app/api/generate-contrats/route.ts` (archiveCurrentContratsFolder, createContratsOutputFolder, uploadContratDocx), `src/app/api/push-docusign/route.ts` (downloadFile, uploadPdf), `src/app/api/push-docusign/single/route.ts` (downloadFile)
-- **Depend de :** `googleapis` (npm), `stream` (Readable), `process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID`, `process.env.GOOGLE_DRIVE_ARCHIVE_FOLDER_ID`, `process.env.GOOGLE_DRIVE_CONTRATS_FOLDER_ID`
+- **Depend de :** `googleapis` (npm), `stream` (Readable), `process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID`, `process.env.GOOGLE_DRIVE_ARCHIVE_FOLDER_ID`, `process.env.GOOGLE_DRIVE_CONTRATS_ROOT_FOLDER_ID`
 - **Constante interne :** `FILE_NAMES` -- mapping code -> nom complet du fichier Drive (18 entrees, promesses uniquement). Les contrats utilisent directement le code comme nom de fichier.
 
 ### `src/lib/docusign.ts`

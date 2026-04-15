@@ -188,13 +188,13 @@ Exception : `GET /api/versions` n'a pas d'auth (stub). Les routes `/api/auth/*` 
 ---
 
 #### `POST /api/generate-contrats`
-**Description :** Genere les 24 contrats definitifs (C1-C8) en DOCX et les uploade dans le dossier Drive `GOOGLE_DRIVE_CONTRATS_FOLDER_ID`. Pas de PDF, pas de DocuSign, pas de PowerForm.
+**Description :** Genere les 24 contrats definitifs (C1-C8) en DOCX et les uploade dans le dossier Drive `GOOGLE_DRIVE_CONTRATS_ROOT_FOLDER_ID`. Pas de PDF, pas de DocuSign, pas de PowerForm.
 **Auth :** Requise
 **Body :** aucun
 
 **Traitement :**
 1. Recupere tous les articles (tries par order_index) et les 24 contrats `WHERE document_type = 'contrat'`
-2. Archive l'eventuel dossier "(en cours)" precedent dans `GOOGLE_DRIVE_CONTRATS_FOLDER_ID` : retire " (en cours)" du nom et deplace dans le sous-dossier "archives contrats redigees" s'il existe
+2. Archive l'eventuel dossier "(en cours)" precedent dans `GOOGLE_DRIVE_CONTRATS_ROOT_FOLDER_ID` : retire " (en cours)" du nom et deplace dans `GOOGLE_DRIVE_ARCHIVE_FOLDER_ID` (dossier partagé avec les promesses)
 3. Cree un nouveau dossier `MODELES CONTRATS - MAJ DU JJ/MM/AA (en cours)`
 4. Pour chaque contrat (x24) : `assembleContract(..., "contrat")` -> `generateDocx(..., "contrat")` -> upload DOCX natif (nom = code, ex `C1.P.CJ.docx`)
 5. Met a jour `google_doc_id` dans la table contracts
