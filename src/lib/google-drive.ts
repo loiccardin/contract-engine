@@ -235,13 +235,14 @@ function getContratsRootId(): string {
 /**
  * Archive l'éventuel dossier "(en cours)" présent dans le dossier racine
  * des Contrats Définitifs : retire " (en cours)" du nom et le déplace dans
- * le dossier Archives partagé avec les Promesses (`GOOGLE_DRIVE_ARCHIVE_FOLDER_ID`).
+ * le dossier Archives dédié aux contrats (`GOOGLE_DRIVE_CONTRATS_ARCHIVE_FOLDER_ID`,
+ * distinct de celui des promesses).
  */
 export async function archiveCurrentContratsFolder(): Promise<string[]> {
   const drive = initDriveClient();
   const parentId = getContratsRootId();
-  const archiveId = process.env.GOOGLE_DRIVE_ARCHIVE_FOLDER_ID;
-  if (!archiveId) throw new Error("GOOGLE_DRIVE_ARCHIVE_FOLDER_ID manquant");
+  const archiveId = process.env.GOOGLE_DRIVE_CONTRATS_ARCHIVE_FOLDER_ID;
+  if (!archiveId) throw new Error("GOOGLE_DRIVE_CONTRATS_ARCHIVE_FOLDER_ID manquant");
 
   const res = await drive.files.list({
     q: `'${parentId}' in parents and mimeType = 'application/vnd.google-apps.folder' and name contains '(en cours)' and trashed = false`,
